@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>Capture All</h1>
+
+        <div class="status">
+            <div class="status-indicator" id="statusIndicator"></div>
+            <span id="statusText">Not Recording</span>
+        </div>
+
+        <div class="stats">
+            <div class="stat">
+                <span class="stat-label">Network Logs:</span>
+                <span class="stat-value" id="networkCount">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Interactions:</span>
+                <span class="stat-value" id="interactionCount">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Element Snapshots:</span>
+                <span class="stat-value" id="snapshotCount">0</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="startBtn" class="btn btn-primary">Start Recording</button>
+            <button id="stopBtn" class="btn btn-secondary" disabled>Stop Recording</button>
+        </div>
+
+        <div class="controls">
+            <button id="captureBtn" class="btn btn-info">Capture Elements</button>
+            <button id="exportBtn" class="btn btn-success">Export Logs</button>
+            <button id="clearBtn" class="btn btn-danger">Clear Logs</button>
+        </div>
+
+        <div class="info">
+            <p><strong>Features:</strong></p>
+            <ul>
+                <li>Network request/response logging</li>
+                <li>Click tracking with coordinates</li>
+                <li>Scroll position recording</li>
+                <li>Drag & drop tracking</li>
+                <li>Element snapshot capture</li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>
