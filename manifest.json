@@ -1,23 +1,24 @@
 {
     "manifest_version": 3,
     "name": "Capture All",
-    "version": "1.0.0",
+    "version": "1.0.4",
     "author": "Ish Kapoor",
-    "description": "Records user interactions, network requests, and screen elements for RCA",
+    "description": "Records user interactions, network requests, and screen elements.",
     "permissions": [
         "activeTab",
         "storage",
         "tabs",
         "scripting",
         "debugger",
-        "downloads"
+        "downloads",
+        "tabCapture",
+        "offscreen"
     ],
     "host_permissions": [
         "<all_urls>"
     ],
     "background": {
-        "service_worker": "background.js",
-        "type": "module"
+        "service_worker": "background.js"
     },
     "action": {
         "default_popup": "popup.html",

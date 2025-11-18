@@ -8,48 +8,142 @@
 
 <body>
     <div class="container">
-        <h1>Capture All</h1>
-
-        <div class="status">
-            <div class="status-indicator" id="statusIndicator"></div>
-            <span id="statusText">Not Recording</span>
-        </div>
-
-        <div class="stats">
-            <div class="stat">
-                <span class="stat-label">Network Logs:</span>
-                <span class="stat-value" id="networkCount">0</span>
+        <!-- Header Section -->
+        <div class="header-section">
+            <div class="logo-area">
+                <svg class="logo-icon" width="32" height="32" viewBox="0 0 32 32">
+                    <circle cx="16" cy="16" r="14" fill="#FF6B6B"/>
+                    <circle cx="16" cy="16" r="8" fill="white"/>
+                    <circle cx="16" cy="16" r="3" fill="#FF6B6B"/>
+                </svg>
+                <h1>Capture All</h1>
             </div>
-            <div class="stat">
-                <span class="stat-label">Interactions:</span>
-                <span class="stat-value" id="interactionCount">0</span>
-            </div>
-            <div class="stat">
-                <span class="stat-label">Element Snapshots:</span>
-                <span class="stat-value" id="snapshotCount">0</span>
+            <div class="status-badge" id="statusBadge">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Ready</span>
             </div>
         </div>
 
-        <div class="controls">
-            <button id="startBtn" class="btn btn-primary">Start Recording</button>
-            <button id="stopBtn" class="btn btn-secondary" disabled>Stop Recording</button>
+        <!-- Recording Mode Tabs -->
+        <div class="mode-tabs">
+            <button class="mode-tab active" id="logModeTab" data-mode="logs">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M3 3h10v2H3V3zm0 4h10v2H3V7zm0 4h7v2H3v-2z"/>
+                </svg>
+                Logs Only
+            </button>
+            <button class="mode-tab" id="videoModeTab" data-mode="video">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                    <polygon points="7,5 7,11 11,8" fill="currentColor"/>
+                </svg>
+                Video + Logs
+            </button>
         </div>
 
-        <div class="controls">
-            <button id="captureBtn" class="btn btn-info">Capture Elements</button>
-            <button id="exportBtn" class="btn btn-success">Export Logs</button>
-            <button id="clearBtn" class="btn btn-danger">Clear Logs</button>
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon network">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 3a1 1 0 110 2 1 1 0 010-2zm0 3a3 3 0 110 6 3 3 0 010-6z"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="networkCount">0</div>
+                    <div class="stat-label">Network</div>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon interactions">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 2L3 8h4v8h6V8h4l-7-6z"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="interactionCount">0</div>
+                    <div class="stat-label">Interactions</div>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon snapshots">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                        <rect x="3" y="5" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                        <circle cx="10" cy="10" r="2.5" fill="currentColor"/>
+                        <circle cx="15" cy="7" r="1" fill="currentColor"/>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="snapshotCount">0</div>
+                    <div class="stat-label">Snapshots</div>
+                </div>
+            </div>
         </div>
 
-        <div class="info">
-            <p><strong>Features:</strong></p>
-            <ul>
-                <li>Network request/response logging</li>
-                <li>Click tracking with coordinates</li>
-                <li>Scroll position recording</li>
-                <li>Drag & drop tracking</li>
-                <li>Element snapshot capture</li>
-            </ul>
+        <!-- Video Recording Info (shown only in video mode when recording) -->
+        <div class="video-info-card" id="videoInfoCard" style="display: none;">
+            <div class="video-info-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
+                    <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                </svg>
+            </div>
+            <div class="video-info-content">
+                <div class="video-duration" id="videoDuration">00:00</div>
+                <div class="video-size" id="videoSize">Recording video...</div>
+            </div>
+        </div>
+
+        <!-- Main Controls -->
+        <div class="main-controls">
+            <button id="startBtn" class="primary-btn">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <circle cx="8" cy="8" r="6"/>
+                </svg>
+                Start Recording
+            </button>
+            <button id="stopBtn" class="secondary-btn" disabled>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="4" y="4" width="8" height="8" rx="1"/>
+                </svg>
+                Stop Recording
+            </button>
+        </div>
+
+        <!-- Secondary Controls -->
+        <div class="secondary-controls">
+            <button id="captureBtn" class="control-btn">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                    <rect x="3" y="5" width="14" height="10" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                    <circle cx="10" cy="10" r="2" fill="currentColor"/>
+                </svg>
+                <span>Capture</span>
+            </button>
+            <button id="exportBtn" class="control-btn accent">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 3v10m0 0l-4-4m4 4l4-4M4 17h12" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                </svg>
+                <span>Export</span>
+            </button>
+            <button id="clearBtn" class="control-btn danger">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M6 4h8M8 4V3a1 1 0 011-1h2a1 1 0 011 1v1M5 7h10l-1 9a1 1 0 01-1 1H7a1 1 0 01-1-1l-1-9z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                </svg>
+                <span>Clear</span>
+            </button>
+        </div>
+
+        <!-- Footer Info -->
+        <div class="footer-info">
+            <div class="info-text">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" style="opacity: 0.5;">
+                    <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1" fill="none"/>
+                    <path d="M7 5v4M7 10.5h.01"/>
+                </svg>
+                <span id="pageInfo">Select recording mode to begin</span>
+            </div>
         </div>
     </div>
 
