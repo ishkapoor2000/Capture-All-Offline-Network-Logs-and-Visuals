@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 	} else {
 		try {
 			const hostname = new URL(tab.url).hostname;
-			showPageInfo(`Ready to record: ${hostname}`);
+			showPageInfo(`Ready to record ${hostname}`);
 		} catch (e) {
 			showPageInfo('Ready to record');
 		}
@@ -100,23 +100,22 @@ function switchMode(mode) {
 
 	// Update tab styling
 	document.querySelectorAll('.mode-tab').forEach(tab => {
-		tab.classList.remove('active');
+		tab.classList.toggle('active', tab.dataset.mode === mode);
+		tab.setAttribute('aria-pressed', String(tab.dataset.mode === mode));
 	});
 
 	if (mode === 'logs') {
-		document.getElementById('logModeTab').classList.add('active');
 		document.getElementById('videoInfoCard').style.display = 'none';
-		showPageInfo('Logs mode: Network + Interactions recording');
+		showPageInfo('Records network requests and interactions');
 	} else {
-		document.getElementById('videoModeTab').classList.add('active');
-		showPageInfo('Video mode: Screen recording + Network + Interactions');
+		showPageInfo('Records the tab as video, plus requests and interactions');
 	}
 }
 
 function showPageInfo(message, isError = false) {
 	const pageInfo = document.getElementById('pageInfo');
 	pageInfo.textContent = message;
-	pageInfo.style.color = isError ? '#ef4444' : 'inherit';
+	pageInfo.classList.toggle('is-error', isError);
 }
 
 async function updateStatus() {
@@ -156,7 +155,7 @@ async function updateStats() {
 	try {
 		const response = await chrome.runtime.sendMessage({ action: 'getStatus' });
 		if (response && !chrome.runtime.lastError) {
-			document.getElementById('networkCount').textContent = response.networkLogsCount || 0;
+			setCount('networkCount', response.networkLogsCount || 0);
 		}
 	} catch (error) {
 		// Silently fail
@@ -168,12 +167,21 @@ async function updateStats() {
 			const interactionLogs = result.interactionLogs || [];
 			const elementSnapshots = result.elementSnapshots || [];
 
-			document.getElementById('interactionCount').textContent = interactionLogs.length;
-			document.getElementById('snapshotCount').textContent = elementSnapshots.length;
+			setCount('interactionCount', interactionLogs.length);
+			setCount('snapshotCount', elementSnapshots.length);
 		}
 	} catch (error) {
 		// Silently fail
 	}
+}
+
+function setCount(id, value) {
+	const el = document.getElementById(id);
+	if (el.textContent === String(value)) return;
+	el.textContent = value;
+	el.classList.remove('bump');
+	void el.offsetWidth; // restart the animation
+	el.classList.add('bump');
 }
 
 function updateVideoDuration() {
@@ -258,7 +266,7 @@ async function stopRecording() {
 		if (result.mode === 'video' && !result.stored) {
 			showNotification('Recording stopped, but video may not have saved. Check and try again.', 'error');
 		} else if (result.mode === 'video') {
-			showNotification('Recording stopped - Video processed successfully!', 'success');
+			showNotification('Recording stopped. Video saved', 'success');
 		} else {
 			showNotification('Recording stopped', 'success');
 		}
@@ -317,15 +325,34 @@ async function clearLogs() {
 		return;
 	}
 
-	if (confirm('Are you sure you want to clear all logs? This cannot be undone.')) {
-		try {
-			await chrome.runtime.sendMessage({ action: 'clearLogs' });
-			showNotification('All logs cleared', 'success');
-			setTimeout(updateStats, 300);
-		} catch (error) {
-			showNotification('Failed to clear logs', 'error');
-		}
+	// Two-step confirm inline instead of a blocking confirm() dialog.
+	const clearBtn = document.getElementById('clearBtn');
+	const label = clearBtn.querySelector('span');
+	if (!clearArmedTimer) {
+		clearBtn.classList.add('armed');
+		label.textContent = 'Click to confirm';
+		clearArmedTimer = setTimeout(disarmClear, 3000);
+		return;
 	}
+	disarmClear();
+
+	try {
+		await chrome.runtime.sendMessage({ action: 'clearLogs' });
+		showNotification('All logs cleared', 'success');
+		setTimeout(updateStats, 300);
+	} catch (error) {
+		showNotification('Failed to clear logs', 'error');
+	}
+}
+
+let clearArmedTimer = null;
+
+function disarmClear() {
+	clearTimeout(clearArmedTimer);
+	clearArmedTimer = null;
+	const clearBtn = document.getElementById('clearBtn');
+	clearBtn.classList.remove('armed');
+	clearBtn.querySelector('span').textContent = 'Clear';
 }
 
 function showNotification(message, type = 'success') {
@@ -335,6 +362,7 @@ function showNotification(message, type = 'success') {
 
 	const notification = document.createElement('div');
 	notification.className = `notification ${type}`;
+	notification.setAttribute('role', type === 'error' ? 'alert' : 'status');
 	notification.textContent = message;
 	document.body.appendChild(notification);
 

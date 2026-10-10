@@ -1,152 +1,118 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
+    <title>Capture All</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
-    <div class="container">
-        <!-- Header Section -->
-        <div class="header-section">
+    <main class="container">
+        <header class="header-section">
             <div class="logo-area">
-                <svg class="logo-icon" width="32" height="32" viewBox="0 0 32 32">
-                    <circle cx="16" cy="16" r="14" fill="#FF6B6B"/>
-                    <circle cx="16" cy="16" r="8" fill="white"/>
-                    <circle cx="16" cy="16" r="3" fill="#FF6B6B"/>
-                </svg>
-                <h1>Capture All</h1>
+                <span class="logo-mark" aria-hidden="true"><span></span></span>
+                <div class="logo-text">
+                    <h1>Capture All</h1>
+                    <p>Local session recorder</p>
+                </div>
             </div>
-            <div class="status-badge" id="statusBadge">
-                <div class="status-dot" id="statusDot"></div>
+            <div class="status-badge" id="statusBadge" role="status">
+                <span class="status-dot" id="statusDot" aria-hidden="true"></span>
                 <span id="statusText">Ready</span>
             </div>
-        </div>
+        </header>
 
-        <!-- Recording Mode Tabs -->
-        <div class="mode-tabs">
-            <button class="mode-tab active" id="logModeTab" data-mode="logs">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M3 3h10v2H3V3zm0 4h10v2H3V7zm0 4h7v2H3v-2z"/>
+        <div class="mode-tabs" role="group" aria-label="Recording mode">
+            <button class="mode-tab" id="logModeTab" data-mode="logs" aria-pressed="false">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+                    <path d="M3 4.5h10M3 8h10M3 11.5h6"/>
                 </svg>
-                Logs Only
+                Logs only
             </button>
-            <button class="mode-tab" id="videoModeTab" data-mode="video">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                    <polygon points="7,5 7,11 11,8" fill="currentColor"/>
+            <button class="mode-tab active" id="videoModeTab" data-mode="video" aria-pressed="true">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="1.75" y="4" width="9" height="8" rx="1.5"/>
+                    <path d="M10.75 7l3.5-2v6l-3.5-2"/>
                 </svg>
-                Video + Logs
+                Video + logs
             </button>
         </div>
 
-        <!-- Stats Cards -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon network">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 3a1 1 0 110 2 1 1 0 010-2zm0 3a3 3 0 110 6 3 3 0 010-6z"/>
-                    </svg>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-value" id="networkCount">0</div>
-                    <div class="stat-label">Network</div>
-                </div>
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-icon interactions">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M10 2L3 8h4v8h6V8h4l-7-6z"/>
-                    </svg>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-value" id="interactionCount">0</div>
-                    <div class="stat-label">Interactions</div>
-                </div>
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-icon snapshots">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                        <rect x="3" y="5" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                        <circle cx="10" cy="10" r="2.5" fill="currentColor"/>
-                        <circle cx="15" cy="7" r="1" fill="currentColor"/>
-                    </svg>
-                </div>
-                <div class="stat-content">
-                    <div class="stat-value" id="snapshotCount">0</div>
-                    <div class="stat-label">Snapshots</div>
-                </div>
-            </div>
-        </div>
+        <p class="page-info" id="pageInfo">Select recording mode to begin</p>
 
-        <!-- Video Recording Info (shown only in video mode when recording) -->
+        <section class="stats-grid" aria-label="Captured so far">
+            <div class="stat-card">
+                <div class="stat-value" id="networkCount">0</div>
+                <div class="stat-label">Requests</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="interactionCount">0</div>
+                <div class="stat-label">Interactions</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="snapshotCount">0</div>
+                <div class="stat-label">Snapshots</div>
+            </div>
+        </section>
+
         <div class="video-info-card" id="videoInfoCard" style="display: none;">
-            <div class="video-info-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
-                    <circle cx="12" cy="12" r="3" fill="currentColor"/>
-                </svg>
-            </div>
+            <span class="video-info-icon" aria-hidden="true"></span>
             <div class="video-info-content">
                 <div class="video-duration" id="videoDuration">00:00</div>
                 <div class="video-size" id="videoSize">Recording video...</div>
             </div>
+            <span class="video-info-label">REC</span>
         </div>
 
-        <!-- Main Controls -->
         <div class="main-controls">
             <button id="startBtn" class="primary-btn">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                     <circle cx="8" cy="8" r="6"/>
                 </svg>
-                Start Recording
+                Start recording
             </button>
             <button id="stopBtn" class="secondary-btn" disabled>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <rect x="4" y="4" width="8" height="8" rx="1"/>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <rect x="3" y="3" width="10" height="10" rx="2"/>
                 </svg>
-                Stop Recording
+                Stop recording
             </button>
         </div>
 
-        <!-- Secondary Controls -->
         <div class="secondary-controls">
-            <button id="captureBtn" class="control-btn">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                    <rect x="3" y="5" width="14" height="10" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                    <circle cx="10" cy="10" r="2" fill="currentColor"/>
+            <button id="captureBtn" class="control-btn" title="Snapshot the elements on this page">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+                    <path d="M2 5V3.5A1.5 1.5 0 013.5 2H5M11 2h1.5A1.5 1.5 0 0114 3.5V5M14 11v1.5a1.5 1.5 0 01-1.5 1.5H11M5 14H3.5A1.5 1.5 0 012 12.5V11"/>
+                    <circle cx="8" cy="8" r="2"/>
                 </svg>
                 <span>Capture</span>
             </button>
-            <button id="exportBtn" class="control-btn accent">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M10 3v10m0 0l-4-4m4 4l4-4M4 17h12" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+            <button id="exportBtn" class="control-btn accent" title="Download everything as one .zip">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M8 2.5v7.5M4.75 7L8 10.25 11.25 7M3 13.5h10"/>
                 </svg>
-                <span>Export</span>
+                <span>Export .zip</span>
             </button>
-            <button id="clearBtn" class="control-btn danger">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M6 4h8M8 4V3a1 1 0 011-1h2a1 1 0 011 1v1M5 7h10l-1 9a1 1 0 01-1 1H7a1 1 0 01-1-1l-1-9z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <button id="clearBtn" class="control-btn danger" title="Delete all captured data">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2.5 4.5h11M6.5 4.5V3a1 1 0 011-1h1a1 1 0 011 1v1.5M4 4.5l.6 8.1a1.5 1.5 0 001.5 1.4h3.8a1.5 1.5 0 001.5-1.4l.6-8.1"/>
                 </svg>
                 <span>Clear</span>
             </button>
         </div>
 
-        <!-- Footer Info -->
-        <div class="footer-info">
+        <footer class="footer-info">
             <div class="info-text">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" style="opacity: 0.5;">
-                    <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1" fill="none"/>
-                    <path d="M7 5v4M7 10.5h.01"/>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="7" width="10" height="7" rx="1.5"/>
+                    <path d="M5.5 7V5a2.5 2.5 0 015 0v2"/>
                 </svg>
-                <span id="pageInfo">Select recording mode to begin</span>
+                <span>Everything stays on this device</span>
                 <span id="extVersion" class="ext-version"></span>
             </div>
-        </div>
-    </div>
+        </footer>
+    </main>
 
     <script src="popup.js"></script>
 </body>
