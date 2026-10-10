@@ -7,6 +7,11 @@ let videoRecordingStartTime = null;
 let videoDurationInterval = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
+	// The version Chrome actually loaded - shows at a glance whether a Reload picked up new code.
+	document.getElementById('extVersion').textContent = 'v' + chrome.runtime.getManifest().version;
+
+	if (await applyPendingUpdate()) return;
+
 	// Get current tab
 	const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 	currentTabId = tab.id;
@@ -43,9 +48,39 @@ document.addEventListener('DOMContentLoaded', async () => {
 	document.getElementById('exportBtn').addEventListener('click', exportLogs);
 	document.getElementById('clearBtn').addEventListener('click', clearLogs);
 
-	// Update stats every 2 seconds while popup is open
-	setInterval(updateStats, 2000);
+	// Refresh status (button states) and stats every 2 seconds while the popup is open, so
+	// the UI stays correct even if the recording state changes underneath it.
+	setInterval(() => {
+		updateStatus();
+		updateStats();
+	}, 2000);
 });
+
+/**
+ * Unpacked installs: Chrome reads this popup from disk on every open but keeps running the
+ * background it loaded at the last Reload, so after the files change the new popup talks to an
+ * old background ("Unknown action"). Reload the extension when the version on disk differs.
+ * @returns {Promise<boolean>} true when a reload was started (the popup is about to close)
+ */
+async function applyPendingUpdate() {
+	try {
+		const onDisk = await (await fetch(chrome.runtime.getURL('manifest.json'))).json();
+		if (onDisk.version === chrome.runtime.getManifest().version) return false;
+
+		const status = await chrome.runtime.sendMessage({ action: 'getStatus' });
+		if (status && status.isRecording) {
+			// Never interrupt a recording; the update applies on the next open after Stop.
+			showNotification(`Update to v${onDisk.version} ready - it applies after you stop`, 'success');
+			return false;
+		}
+
+		showNotification(`Updating Capture All to v${onDisk.version}...`, 'success');
+		setTimeout(() => chrome.runtime.reload(), 600);
+		return true;
+	} catch (error) {
+		return false;
+	}
+}
 
 function isRestrictedPage(url) {
 	return url.startsWith('chrome://') ||
@@ -156,39 +191,6 @@ function updateVideoDuration() {
 	document.getElementById('videoSize').textContent = `~${estimatedSizeMB} MB`;
 }
 
-// Check if content script is injected
-async function isContentScriptInjected(tabId) {
-	try {
-		const response = await chrome.tabs.sendMessage(tabId, { action: 'ping' });
-		return response && response.pong === true;
-	} catch (error) {
-		return false;
-	}
-}
-
-// Inject content script programmatically
-async function injectContentScript(tabId) {
-	try {
-		const injected = await isContentScriptInjected(tabId);
-		if (injected) {
-			console.log('Content script already injected');
-			return true;
-		}
-
-		await chrome.scripting.executeScript({
-			target: { tabId: tabId },
-			files: ['content.js']
-		});
-
-		console.log('Content script injected successfully');
-		await new Promise(resolve => setTimeout(resolve, 300));
-		return true;
-	} catch (error) {
-		console.error('Failed to inject content script:', error);
-		return false;
-	}
-}
-
 async function startRecording() {
 	try {
 		const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -199,147 +201,33 @@ async function startRecording() {
 			return;
 		}
 
-		// Start based on mode
-		if (recordingMode === 'video') {
-			await startVideoRecording();
-		} else {
-			await startLogsRecording();
+		// The background runs the whole sequence, so closing the popup right away is safe.
+		const response = await chrome.runtime.sendMessage({
+			action: 'startSession',
+			tabId: currentTabId,
+			mode: recordingMode
+		});
+
+		if (!response || !response.success) {
+			throw new Error(response?.error || 'Failed to start recording');
 		}
 
+		isRecording = true;
+		if (recordingMode === 'video') {
+			document.getElementById('videoInfoCard').style.display = 'flex';
+			videoRecordingStartTime = Date.now();
+			videoDurationInterval = setInterval(updateVideoDuration, 1000);
+		}
 		updateStatus();
+
+		const parts = recordingMode === 'video' ? ['video', 'network'] : ['network'];
+		if (response.interactions) parts.push('interactions');
+		showNotification(`Recording started (${parts.join(' + ')})`, 'success');
 	} catch (error) {
 		console.error('Failed to start recording:', error);
 		showNotification('Failed to start: ' + error.message, 'error');
-	}
-}
-
-async function startLogsRecording() {
-	// Start network recording
-	const response = await chrome.runtime.sendMessage({
-		action: 'startRecording',
-		tabId: currentTabId
-	});
-
-	if (!response || !response.success) {
-		throw new Error(response?.error || 'Failed to start network recording');
-	}
-
-	// Inject and start interaction recording
-	const injected = await injectContentScript(currentTabId);
-
-	if (injected) {
-		try {
-			await chrome.tabs.sendMessage(currentTabId, {
-				action: 'startInteractionRecording'
-			});
-			showNotification('Recording started (network + interactions)', 'success');
-		} catch (error) {
-			console.warn('Could not start interaction recording:', error.message);
-			showNotification('Recording started (network only)', 'success');
-		}
-	} else {
-		showNotification('Recording started (network only)', 'success');
-	}
-}
-
-async function startVideoRecording() {
-	try {
-		console.log('[Popup] Starting video recording for tab:', currentTabId);
-		
-		// Check if there's an existing stream and clean it up first
-		// This prevents "Cannot capture a tab with an active stream" error
-		try {
-			const status = await chrome.runtime.sendMessage({ action: 'getStatus' });
-			if (status && status.isRecording) {
-				console.log('[Popup] Existing recording detected, stopping it first...');
-				await chrome.runtime.sendMessage({
-					action: 'stopRecording',
-					tabId: currentTabId
-				});
-				await chrome.runtime.sendMessage({
-					action: 'stopVideoCapture',
-					tabId: currentTabId
-				});
-				// Wait a bit for cleanup
-				await new Promise(resolve => setTimeout(resolve, 500));
-			}
-		} catch (cleanupError) {
-			console.warn('[Popup] Error during cleanup:', cleanupError);
-			// Continue anyway
-		}
-		
-		// Start video capture first
-		console.log('[Popup] Starting video capture...');
-		const videoResponse = await chrome.runtime.sendMessage({
-			action: 'startVideoCapture',
-			tabId: currentTabId
-		});
-
-		console.log('[Popup] Video capture response:', videoResponse);
-
-		if (!videoResponse || !videoResponse.success) {
-			throw new Error(videoResponse?.error || 'Failed to start video recording');
-		}
-
-		// Start network recording
-		console.log('[Popup] Starting network recording...');
-		const networkResponse = await chrome.runtime.sendMessage({
-			action: 'startRecording',
-			tabId: currentTabId
-		});
-
-		if (!networkResponse || !networkResponse.success) {
-			// Stop video if network recording fails
-			console.error('[Popup] Network recording failed, stopping video...');
-			await chrome.runtime.sendMessage({
-				action: 'stopVideoCapture',
-				tabId: currentTabId
-			});
-			throw new Error(networkResponse?.error || 'Failed to start network recording');
-		}
-
-		// Inject and start interaction recording
-		console.log('[Popup] Starting interaction recording...');
-		const injected = await injectContentScript(currentTabId);
-
-		if (injected) {
-			try {
-				await chrome.tabs.sendMessage(currentTabId, {
-					action: 'startInteractionRecording'
-				});
-				console.log('[Popup] Interaction recording started');
-			} catch (error) {
-				console.warn('[Popup] Could not start interaction recording:', error.message);
-				// Continue - network recording is more important
-			}
-		} else {
-			console.warn('[Popup] Could not inject content script');
-		}
-
-		// Update UI state - wait a bit for background state to update
-		isRecording = true;
-		
-		// Show video info card and start duration timer
-		document.getElementById('videoInfoCard').style.display = 'flex';
-		videoRecordingStartTime = Date.now();
-		videoDurationInterval = setInterval(updateVideoDuration, 1000);
-
-		// Wait a moment for background state to update, then update button states
-		await new Promise(resolve => setTimeout(resolve, 200));
-		updateStatus();
-		
-		showNotification('Video recording started (video + network + interactions)', 'success');
-		console.log('[Popup] Video recording started successfully');
-	} catch (error) {
-		console.error('[Popup] Error starting video recording:', error);
-		showNotification('Failed to start video recording: ' + error.message, 'error');
-		
-		// Reset UI state on error
 		isRecording = false;
 		updateStatus();
-		
-		// Don't throw error to prevent popup from closing
-		return;
 	}
 }
 
@@ -347,39 +235,33 @@ async function stopRecording() {
 	try {
 		if (recordingMode === 'video') {
 			showNotification('Processing video... Please wait', 'success');
-
-			// Stop video capture
-			await chrome.runtime.sendMessage({
-				action: 'stopVideoCapture',
-				tabId: currentTabId
-			});
-
-			// Stop duration timer
-			if (videoDurationInterval) {
-				clearInterval(videoDurationInterval);
-				videoDurationInterval = null;
-			}
-			videoRecordingStartTime = null;
-			document.getElementById('videoInfoCard').style.display = 'none';
 		}
 
-		// Stop network recording
-		await chrome.runtime.sendMessage({
-			action: 'stopRecording',
+		const result = await chrome.runtime.sendMessage({
+			action: 'stopSession',
 			tabId: currentTabId
 		});
 
-		// Stop interaction recording
-		try {
-			await chrome.tabs.sendMessage(currentTabId, {
-				action: 'stopInteractionRecording'
-			});
-		} catch (error) {
-			console.warn('Could not stop interaction recording:', error.message);
+		if (!result || !result.success) {
+			throw new Error(result?.error || 'Failed to stop recording');
 		}
 
+		if (videoDurationInterval) {
+			clearInterval(videoDurationInterval);
+			videoDurationInterval = null;
+		}
+		videoRecordingStartTime = null;
+		document.getElementById('videoInfoCard').style.display = 'none';
+
 		updateStatus();
-		showNotification('Recording stopped - Video processed successfully!', 'success');
+
+		if (result.mode === 'video' && !result.stored) {
+			showNotification('Recording stopped, but video may not have saved. Check and try again.', 'error');
+		} else if (result.mode === 'video') {
+			showNotification('Recording stopped - Video processed successfully!', 'success');
+		} else {
+			showNotification('Recording stopped', 'success');
+		}
 	} catch (error) {
 		console.error('Failed to stop recording:', error);
 		showNotification('Failed to stop: ' + error.message, 'error');
@@ -388,7 +270,11 @@ async function stopRecording() {
 
 async function captureElements() {
 	try {
-		const injected = await injectContentScript(currentTabId);
+		const response = await chrome.runtime.sendMessage({
+			action: 'ensureContentScript',
+			tabId: currentTabId
+		});
+		const injected = response && response.success;
 
 		if (!injected) {
 			showNotification('Failed to inject content script', 'error');
@@ -408,17 +294,17 @@ async function captureElements() {
 
 async function exportLogs() {
 	try {
-		await chrome.runtime.sendMessage({
+		showNotification('Preparing .zip export...', 'success');
+		const response = await chrome.runtime.sendMessage({
 			action: 'exportLogs',
 			tabId: currentTabId,
 			mode: recordingMode
 		});
 
-		if (recordingMode === 'video') {
-			showNotification('Exporting video + timeline HTML...', 'success');
-		} else {
-			showNotification('JSON and timeline HTML exported!', 'success');
+		if (!response || !response.success) {
+			throw new Error(response?.error || 'Export failed');
 		}
+		showNotification('Export ready - choose where to save the .zip', 'success');
 	} catch (error) {
 		console.error('Export failed:', error);
 		showNotification('Export failed: ' + error.message, 'error');

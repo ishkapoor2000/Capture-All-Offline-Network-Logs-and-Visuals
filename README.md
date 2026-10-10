@@ -11,9 +11,9 @@ A Chrome extension that records network logs, user interactions, and DOM element
 
 ## Highlights
 
-- **One-click Export → Two Files**
-  - `capture_all_logs_[timestamp].json`
-  - `capture_all_timeline_[timestamp].html` (self-contained; open in any browser)
+- **One-click Export → One `.zip`**
+  - `capture_all_[timestamp].zip` containing a `capture_all_[timestamp]/` folder with
+    `timeline.html`, `logs.json` and (video mode) `video.webm`
 - **Parallel Timeline Tracks**
   - Network Requests
   - User Interactions
@@ -53,7 +53,7 @@ A Chrome extension that records network logs, user interactions, and DOM element
 - `popup.html` / `popup.js`
   - UI for Start/Stop recording
   - Capture Elements
-  - Export Logs (triggers JSON + HTML)
+  - Export Logs (downloads one .zip)
   - Clear Logs
   - Real-time stats panel
 
@@ -62,7 +62,7 @@ A Chrome extension that records network logs, user interactions, and DOM element
 - `activeTab`, `tabs`, `scripting`: inject and communicate with pages
 - `storage`: persist interactions and element snapshots
 - `debugger`: network logging via Chrome Debugger API
-- `downloads`: save JSON and HTML files automatically
+- `downloads`: save the export .zip
 - `host_permissions`: `<all_urls>` for broad page access
 
 ## Usage
@@ -72,17 +72,18 @@ A Chrome extension that records network logs, user interactions, and DOM element
 3. Interact with the page (click, scroll, drag, type, etc.).
 4. Optionally click “Capture Elements” to snapshot visible interactive elements.
 5. Click “Stop Recording”.
-6. Click “Export Logs”.
-   - You’ll get both:
-     - JSON data export
-     - HTML timeline export (open it directly in any browser)
+6. Click “Export Logs” and choose where to save the `.zip`.
+   - Unzip it and open `timeline.html` in any browser (keep it next to `video.webm`).
 
 ## Exported Files
 
-- `capture_all_logs_[timestamp].json`
+One `capture_all_[timestamp].zip` with a `capture_all_[timestamp]/` folder inside:
+
+- `logs.json`
   - Raw data for programmatic analysis
-- `capture_all_timeline_[timestamp].html`
-  - Single-file timeline viewer (no external dependencies)
+- `video.webm` (video mode only)
+- `timeline.html`
+  - Timeline viewer (no external dependencies; in video mode it plays `video.webm` from the same folder)
   - Includes:
     - Parallel tracks (Network / Interactions / Snapshots)
     - Compact, scrollable event cards
@@ -92,7 +93,7 @@ A Chrome extension that records network logs, user interactions, and DOM element
 
 ## Data Model
 
-Example structure of `capture_all_logs_[timestamp].json`:
+Example structure of `logs.json`:
 
 ```json
 {
@@ -205,8 +206,7 @@ Notes:
     - Receives `logInteraction` from `content.js` and stores in `chrome.storage.local`
   - Export:
     - Aggregates network + interactions + snapshots
-    - Saves JSON
-    - Generates and saves a self-contained HTML timeline
+    - Builds one .zip (JSON + HTML timeline + video) in the offscreen document
 - `content.js`
   - Sends user interactions to background via `logInteraction`
   - Provides `captureElements` snapshot on demand
@@ -219,7 +219,7 @@ Notes:
 - Start recording before interacting with the page
 - Use “Capture Elements” after the page stabilizes to snapshot meaningful elements
 - Export after stopping to ensure timeline includes all events
-- Share the HTML file with teammates — no setup required
+- Share the .zip with teammates — no setup required
 
 ## Troubleshooting
 

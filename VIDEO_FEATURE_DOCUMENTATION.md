@@ -99,20 +99,14 @@ Export: Video file + HTML timeline with synchronized logs
 
 ### 5. Video Export
 
-**Problem Solved:** Large videos couldn't be embedded in HTML, async retrieval was broken.
-
-**Solution:**
-- Export video as separate file
-- HTML references video file (or embeds if small enough)
-- Proper async/await chain for video retrieval
+**Solution:** one `.zip` per export: `capture_all_<timestamp>/` with `timeline.html`, `logs.json` and `video.webm`.
 
 **Implementation:**
-- `exportAllLogs()` - Retrieves video from IndexedDB, exports as separate file
-- `generateVideoTimelineHTML()` - Creates HTML with video player
-- Small videos (<10MB): Embedded as data URL
-- Large videos: Reference as relative file path
-
-**Location:** `background.js` lines 723-842 (exportAllLogs), 1773-1817 (generateVideoTimelineHTML)
+- `exportAllLogs()` (background) builds the JSON + HTML, puts them in IndexedDB as a `pending-export` record
+  (messaging caps out at 64MB) and calls `downloadViaOffscreen()`.
+- `makeDownloadUrl()` / `buildZip()` (offscreen) read that record plus `current-video`, write a standard zip
+  (JSON/HTML deflated with `CompressionStream`, video stored as-is) and return a blob: URL for `chrome.downloads`.
+- `generateVideoTimelineHTML()` always references the video as `video.webm` in the same folder.
 
 ### 6. Video Validation
 
@@ -129,8 +123,10 @@ Export: Video file + HTML timeline with synchronized logs
 ### Recording Flow
 
 1. **User starts recording** (Video mode)
-   - `popup.js` → `startVideoRecording()`
-   - Calls `background.js` → `startVideoCapture()`
+   - `popup.js` → `startRecording()` sends one `startSession` message
+   - `background.js` → `startSession()` runs video → network debugger → content script, so it completes even
+     if the popup closes right after Start
+   - `startVideoCapture()`:
    - Gets stream ID from tabCapture API
    - Creates offscreen document
    - Sends stream ID to offscreen document
@@ -143,20 +139,13 @@ Export: Video file + HTML timeline with synchronized logs
    - Stores chunks in `recordedChunks` array
 
 3. **User stops recording**
-   - `popup.js` → `stopRecording()`
-   - Calls `background.js` → `stopVideoCapture()`
-   - Sends stop message to offscreen document
-   - `offscreen.js` → `stopRecording()`
-   - MediaRecorder stops, `onstop` handler fires
-   - Combines chunks into Blob
-   - Converts to base64
-   - Sends to background via `video-data-ready` message
+   - `popup.js` → `stopRecording()` sends one `stopSession` message
+   - `background.js` → `stopSession()` → `stopVideoCapture()`, `stopRecording()`, stop interactions
+   - `offscreen.js` → `stopRecording()`: MediaRecorder stops, chunks are combined into a Blob and written
+     straight to IndexedDB (`current-video`); the stop response reports whether it was stored
 
-4. **Background stores video**
-   - `background.js` receives `video-data-ready` message
-   - Converts base64 to Blob
-   - Stores in IndexedDB via `storeVideoBlob()`
-   - Sets flag in chrome.storage
+4. **Network logs** are mirrored to IndexedDB (`network-logs`) while recording, so a service-worker
+   restart between Stop and Export doesn't empty the export
 
 ### Export Flow
 
@@ -164,17 +153,13 @@ Export: Video file + HTML timeline with synchronized logs
    - `popup.js` → `exportLogs()`
    - Calls `background.js` → `exportAllLogs(tabId, 'video')`
 
-2. **Retrieve and export video**
-   - `getVideoBlob('current-video')` retrieves from IndexedDB
-   - Validates video blob
-   - Creates object URL
-   - Downloads as separate `.webm` file
+2. **Build files**
+   - `getVideoBlob('current-video')` validates the stored video
+   - `generateVideoTimelineHTML()` builds the player (references `video.webm`)
 
-3. **Generate HTML**
-   - `generateVideoTimelineHTML()` called with video blob and filename
-   - Determines if video should be embedded or referenced
-   - Generates HTML with video player and synchronized logs
-   - Downloads HTML file
+3. **Zip and download**
+   - Offscreen `buildZip()` bundles `timeline.html`, `logs.json`, `video.webm`
+   - One `chrome.downloads.download` of `capture_all_<timestamp>.zip`
 
 ## File Structure
 

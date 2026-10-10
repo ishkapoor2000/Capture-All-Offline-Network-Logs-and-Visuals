@@ -361,6 +361,12 @@ h1 {
     color: #666;
 }
 
+.ext-version {
+    margin-left: auto;
+    color: #999;
+    font-variant-numeric: tabular-nums;
+}
+
 /* Notification */
 .notification {
     position: fixed;

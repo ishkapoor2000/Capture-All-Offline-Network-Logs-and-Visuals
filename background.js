@@ -50,6 +50,53 @@ function initializeDebuggerListeners() {
 
 initializeDebuggerListeners();
 
+// ============================================================================
+// Persistent recording state (survives MV3 service-worker restarts)
+// MV3 service workers are ephemeral: module-level vars like isRecording are lost when the
+// worker is torn down mid-recording, which made the popup show "Ready" (Stop disabled) while
+// the offscreen document kept recording. We mirror the essential state into chrome.storage
+// so the popup and Stop keep working across restarts, and rehydrate the module vars on wake.
+// ============================================================================
+
+async function setRecordingState(patch) {
+    try {
+        const { recordingState } = await chrome.storage.local.get(['recordingState']);
+        const next = { ...(recordingState || {}), ...patch };
+        await chrome.storage.local.set({ recordingState: next });
+    } catch (e) {
+        console.warn('[State] Failed to persist recording state:', e);
+    }
+}
+
+async function clearRecordingState() {
+    try {
+        await chrome.storage.local.remove(['recordingState']);
+    } catch (e) {
+        console.warn('[State] Failed to clear recording state:', e);
+    }
+}
+
+async function restoreRecordingState() {
+    try {
+        const { recordingState } = await chrome.storage.local.get(['recordingState']);
+        if (recordingState && recordingState.isRecording) {
+            isRecording = true;
+            currentRecordingTabId = recordingState.tabId ?? null;
+            videoStartTime = recordingState.startTime ?? null;
+            // If the debugger was attached before the restart it stays attached to the tab,
+            // so re-track it to keep logging network events and to allow a clean detach.
+            if (recordingState.debuggerAttached && recordingState.tabId != null) {
+                attachedTabs.add(recordingState.tabId);
+            }
+            console.log('[State] Restored recording state after SW restart:', recordingState);
+        }
+    } catch (e) {
+        console.warn('[State] Failed to restore recording state:', e);
+    }
+}
+
+restoreRecordingState();
+
 
 /**
  * Creates or reuses an offscreen document for video recording
@@ -62,63 +109,130 @@ initializeDebuggerListeners();
  */
 async function createOffscreenDocument(streamId, tabId) {
     try {
-        console.log('[Video] Creating/checking offscreen document for video recording');
-        
-        // Check if offscreen document already exists
-        const existingContexts = await chrome.runtime.getContexts({
-            contextTypes: ['OFFSCREEN_DOCUMENT']
-        });
-
-        if (existingContexts.length > 0) {
-            console.log('[Video] Offscreen document already exists, reusing it');
-        } else {
-            // Create offscreen document - this is where MediaRecorder will run
-            await chrome.offscreen.createDocument({
-                url: 'offscreen.html',
-                reasons: ['USER_MEDIA'],
-                justification: 'Recording screen for session replay'
-            });
-            console.log('[Video] Offscreen document created successfully');
-        }
-
-        // Wait for document to be fully ready and loaded
-        // Increased wait time to ensure offscreen.js is loaded
-        console.log('[Video] Waiting for offscreen document to be ready...');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Send message to offscreen document with retry logic
-        // Sometimes the message can fail if document isn't ready yet
-        const maxRetries = 3;
-        let lastError = null;
-        
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-                console.log(`[Video] Sending start-recording message (attempt ${attempt}/${maxRetries})`);
-                
-        await chrome.runtime.sendMessage({
+        await ensureOffscreenDocument(['USER_MEDIA'], 'Recording screen for session replay');
+        const response = await sendToOffscreen({
             type: 'start-recording',
             target: 'offscreen',
             data: { streamId, tabId }
         });
-
-                console.log('[Video] Recording message sent successfully to offscreen document');
-                return; // Success, exit function
-    } catch (error) {
-                lastError = error;
-                console.warn(`[Video] Message send failed (attempt ${attempt}):`, error.message);
-                
-                if (attempt < maxRetries) {
-                    // Wait a bit longer before retrying
-                    await new Promise(resolve => setTimeout(resolve, 500 * attempt));
-                }
-            }
+        // The offscreen document reports whether MediaRecorder actually started.
+        // A delivered message is not enough - surface a real recording failure.
+        if (response && response.success === false) {
+            throw new Error(response.error || 'Offscreen document failed to start recording');
         }
-
-        // If all retries failed, throw error
-        throw new Error(`Failed to communicate with offscreen document after ${maxRetries} attempts: ${lastError?.message}`);
+        console.log('[Video] Recording message sent successfully to offscreen document');
     } catch (error) {
         console.error('[Video] Error creating/communicating with offscreen document:', error);
         throw error;
+    }
+}
+
+/**
+ * Creates the offscreen document if none exists (only one may exist at a time) and waits
+ * for offscreen.js to load.
+ * @param {string[]} reasons - chrome.offscreen reasons used when creating it
+ * @param {string} justification
+ */
+async function ensureOffscreenDocument(reasons, justification) {
+    const existingContexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT']
+    });
+    if (existingContexts.length > 0) {
+        console.log('[Offscreen] Offscreen document already exists, reusing it');
+        return;
+    }
+    await chrome.offscreen.createDocument({ url: 'offscreen.html', reasons, justification });
+    console.log('[Offscreen] Offscreen document created, waiting for it to be ready...');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+}
+
+/**
+ * Sends a message to the offscreen document, retrying while it is still loading
+ * ("Receiving end does not exist").
+ */
+async function sendToOffscreen(message, maxRetries = 3) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await chrome.runtime.sendMessage(message);
+        } catch (error) {
+            lastError = error;
+            console.warn(`[Offscreen] ${message.type} send failed (attempt ${attempt}):`, error.message);
+            if (attempt < maxRetries) {
+                await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+            }
+        }
+    }
+    throw new Error(`Failed to communicate with offscreen document after ${maxRetries} attempts: ${lastError?.message}`);
+}
+
+/**
+ * Downloads an export zip through a blob: URL created in the offscreen document, which builds
+ * the zip from the files listed in an IndexedDB record (service workers can't create blob URLs).
+ * The URL is revoked (and the document closed, unless recording) once the download ends.
+ * @param {{exportId: string}} payload - id of the IndexedDB record listing the zip's files
+ * @param {string} filename
+ */
+async function downloadViaOffscreen(payload, filename) {
+    await ensureOffscreenDocument(['BLOBS'], 'Creating export files for download');
+    const response = await sendToOffscreen({ type: 'make-download-url', target: 'offscreen', data: payload });
+    if (!response || !response.success) {
+        throw new Error(response?.error || 'Offscreen document failed to create download URL');
+    }
+    const url = response.url;
+    let downloadId;
+    try {
+        downloadId = await chrome.downloads.download({ url, filename, saveAs: true });
+    } catch (error) {
+        await chrome.runtime.sendMessage({ type: 'revoke-url', target: 'offscreen', data: { url } }).catch(() => {});
+        throw error;
+    }
+    pendingDownloads.set(downloadId, url);
+    return downloadId;
+}
+
+// shortcut: pending downloads live in memory; if the SW restarts mid-download the offscreen
+// document stays open until the next recording start closes it, which is harmless.
+const pendingDownloads = new Map();
+
+chrome.downloads.onChanged.addListener(async (delta) => {
+    const url = pendingDownloads.get(delta.id);
+    const state = delta.state?.current;
+    if (!url || (state !== 'complete' && state !== 'interrupted')) return;
+    pendingDownloads.delete(delta.id);
+    try {
+        await chrome.runtime.sendMessage({ type: 'revoke-url', target: 'offscreen', data: { url } });
+        const { recordingState } = await chrome.storage.local.get(['recordingState']);
+        if (pendingDownloads.size === 0 && !(recordingState && recordingState.isRecording)) {
+            await closeExistingOffscreenDocument();
+        }
+    } catch (e) {
+        console.warn('[Export] Download cleanup failed:', e);
+    }
+});
+
+/**
+ * Closes any existing offscreen document, releasing a tab-capture stream it may still hold.
+ * Safe to call when none exists. Used both to recover orphaned state before a new recording
+ * and to tear down the recorder after one.
+ * @returns {Promise<boolean>} true if a document was found and closed
+ */
+async function closeExistingOffscreenDocument() {
+    try {
+        const contexts = await chrome.runtime.getContexts({
+            contextTypes: ['OFFSCREEN_DOCUMENT']
+        });
+        if (contexts.length > 0) {
+            await chrome.offscreen.closeDocument();
+            console.log('[Video] Closed offscreen document (released any active stream)');
+            // Give the stream a moment to fully release before a new capture is requested.
+            await new Promise(resolve => setTimeout(resolve, 300));
+            return true;
+        }
+        return false;
+    } catch (e) {
+        console.warn('[Video] Error closing offscreen document:', e);
+        return false;
     }
 }
 
@@ -136,9 +250,15 @@ async function createOffscreenDocument(streamId, tabId) {
 async function startVideoCapture(tabId) {
     try {
         console.log('[Video] Starting video capture for tab:', tabId);
-        
-        // Check if there's already a recording in progress for this tab
-        // If so, stop it first to prevent "Cannot capture a tab with an active stream" error
+
+        // Always clear orphaned recorder state before starting - this is what lets a fresh
+        // Start recover on its own after a crash or a service-worker restart. An offscreen
+        // document left over from a previous attempt keeps holding the tab-capture stream,
+        // which makes getMediaStreamId fail with "Cannot capture a tab with an active stream".
+        // Closing it releases the stream so we don't need the user to reload the tab.
+        // Module state (isRecording etc.) is lost on SW restart, so we can't rely on it here.
+        await closeExistingOffscreenDocument();
+        // If a recording is still tracked as in progress, also detach the network debugger.
         if (currentRecordingTabId === tabId || isRecording) {
             console.log('[Video] Existing recording detected, stopping it first...');
             try {
@@ -149,16 +269,15 @@ async function startVideoCapture(tabId) {
                 // Stop video capture
                 await stopVideoCapture(tabId);
                 // Wait longer for cleanup to complete (streams need time to release)
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                await new Promise(resolve => setTimeout(resolve, 1500));
             } catch (cleanupError) {
                 console.warn('[Video] Error during cleanup:', cleanupError);
                 // Wait a bit anyway before continuing
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
-        
+
         currentRecordingTabId = tabId;
-        videoStartTime = Date.now();
 
         // Validate tab exists and is recordable
         const tab = await chrome.tabs.get(tabId);
@@ -239,12 +358,25 @@ async function startVideoCapture(tabId) {
         console.log('[Video] Setting up offscreen document for recording...');
         await createOffscreenDocument(streamId, tabId);
 
+        // Mark t=0 now: createOffscreenDocument only resolves once the offscreen document has
+        // confirmed MediaRecorder actually started, so this closely matches the first frame
+        // and keeps the exported timeline aligned with the footage.
+        videoStartTime = Date.now();
+
         // Store recording metadata in chrome.storage (not the video itself)
+        // videoRecordingStartTime is a durable copy that survives stopVideoCapture so the
+        // exporter can anchor the timeline to when the video actually began (video t=0),
+        // rather than to the first captured event.
         await chrome.storage.local.set({
             videoStreamId: streamId,
             videoStartTime: videoStartTime,
+            videoRecordingStartTime: videoStartTime,
             isVideoRecording: true
         });
+
+        // Persist unified recording state so the popup shows "recording" and Stop stays
+        // enabled across service-worker restarts.
+        await setRecordingState({ isRecording: true, mode: 'video', tabId: tabId, startTime: videoStartTime });
 
         console.log('[Video] Video capture started successfully!');
         return { success: true, streamId: streamId };
@@ -259,7 +391,7 @@ async function startVideoCapture(tabId) {
  * This function:
  * 1. Sends stop signal to offscreen document
  * 2. Waits for video processing to complete
- * 3. Retrieves video from IndexedDB (handled by video-data-ready message)
+ * 3. Uses the offscreen document's report of whether the video reached IndexedDB
  * 4. Cleans up resources and closes offscreen document
  * 
  * @param {number} tabId - The tab ID that was being recorded
@@ -269,44 +401,46 @@ async function stopVideoCapture(tabId) {
     try {
         console.log('[Video] Stopping video capture for tab:', tabId);
 
-        // Send stop message to offscreen document
-        // The offscreen document will stop MediaRecorder and process the video
-        try {
-            const stopResponse = await chrome.runtime.sendMessage({
-                type: 'stop-recording',
-                target: 'offscreen'
-            });
-            console.log('[Video] Stop message sent to offscreen document, response:', stopResponse);
-        } catch (error) {
-            console.warn('[Video] Could not send stop message to offscreen:', error);
-            // Continue anyway - offscreen might have already stopped
+        // Only talk to the offscreen recorder when one is actually present. stopVideoCapture
+        // is also called as pre-cleanup before a fresh recording, where there is nothing to stop.
+        const existingContexts = await chrome.runtime.getContexts({
+            contextTypes: ['OFFSCREEN_DOCUMENT']
+        });
+
+        // The offscreen document stops MediaRecorder, writes the blob to IndexedDB and only
+        // then responds, reporting whether the video was stored.
+        let stored = false;
+        if (existingContexts.length > 0) {
+            try {
+                const stopResponse = await chrome.runtime.sendMessage({
+                    type: 'stop-recording',
+                    target: 'offscreen'
+                });
+                console.log('[Video] Stop message sent to offscreen document, response:', stopResponse);
+                stored = !!(stopResponse && stopResponse.stored);
+            } catch (error) {
+                console.warn('[Video] Could not send stop message to offscreen:', error);
+                // Continue anyway - offscreen might have already stopped
+            }
         }
 
-        // Wait for video processing to complete
-        // MediaRecorder needs time to finalize the recording and convert to blob
-        // The offscreen document will send us a message when ready
-        console.log('[Video] Waiting for video processing to complete...');
-        await new Promise(resolve => setTimeout(resolve, 4000)); // Increased wait time
-
-        // Note: Video blob is now stored in IndexedDB by the video-data-ready handler
-        // We don't need to retrieve it here - it will be fetched during export
-        // This keeps memory usage low and avoids chrome.storage size limits
+        // Note: Video blob is stored in IndexedDB by the offscreen document and
+        // fetched during export. videoRecordingStartTime is intentionally kept so the
+        // exporter can anchor the timeline; it is overwritten on the next recording.
 
         // Clean up recording metadata from chrome.storage
         await chrome.storage.local.remove([
-            'videoStreamId', 
-            'videoStartTime', 
-            'isVideoRecording', 
-            'videoRecordingComplete'
+            'videoStreamId',
+            'videoStartTime',
+            'isVideoRecording'
         ]);
+        // In video mode the debugger is stopped separately by stopRecording; clear the
+        // unified state here too so a stopped video recording never looks "still running".
+        await clearRecordingState();
         console.log('[Video] Recording metadata cleaned up');
 
         // Close offscreen document to free resources
         try {
-            const existingContexts = await chrome.runtime.getContexts({
-                contextTypes: ['OFFSCREEN_DOCUMENT']
-            });
-
             if (existingContexts.length > 0) {
                 await chrome.offscreen.closeDocument();
                 console.log('[Video] Offscreen document closed successfully');
@@ -321,6 +455,7 @@ async function stopVideoCapture(tabId) {
         videoStartTime = null;
 
         console.log('[Video] Video capture stopped successfully');
+        return { stored };
     } catch (error) {
         console.error('[Video] Error stopping video capture:', error);
         // Don't throw - try to clean up anyway
@@ -329,6 +464,103 @@ async function stopVideoCapture(tabId) {
         } catch (e) {
             // Ignore cleanup errors
         }
+    }
+}
+
+/**
+ * Runs the whole start sequence (video → network debugger → interaction recorder) in the
+ * service worker. It used to run in the popup, whose script stops the moment the popup
+ * closes - clicking back onto the page right after Start left only the video running.
+ * @param {number} tabId
+ * @param {'video'|'logs'} mode
+ * @returns {Promise<{success: boolean, interactions: boolean}>}
+ */
+async function startSession(tabId, mode) {
+    const { recordingState } = await chrome.storage.local.get(['recordingState']);
+    if (recordingState && recordingState.isRecording) {
+        console.log('[Session] Existing recording detected, stopping it first...');
+        await stopSession(tabId);
+    }
+
+    if (mode === 'video') {
+        const video = await startVideoCapture(tabId);
+        if (!video.success) throw new Error(video.error || 'Failed to start video recording');
+    }
+
+    try {
+        await startRecording(tabId);
+    } catch (error) {
+        if (mode === 'video') await stopVideoCapture(tabId);
+        throw error;
+    }
+    await setRecordingState({ mode });
+
+    let interactions = false;
+    if (await ensureContentScript(tabId)) {
+        try {
+            await chrome.tabs.sendMessage(tabId, { action: 'startInteractionRecording' });
+            interactions = true;
+        } catch (error) {
+            // Network (and video) keep recording without interactions.
+            console.warn('[Session] Could not start interaction recording:', error.message);
+        }
+    }
+    return { success: true, interactions };
+}
+
+/**
+ * Stops whatever startSession started. Mode and tab come from the persisted recording state,
+ * so a popup reopened on another tab (or after a service-worker restart) stops the right one.
+ * @param {number} fallbackTabId - used only when no recording state is persisted
+ * @returns {Promise<{success: boolean, mode: string, stored: boolean|null}>}
+ */
+async function stopSession(fallbackTabId) {
+    const { recordingState } = await chrome.storage.local.get(['recordingState']);
+    const tabId = recordingState?.tabId ?? fallbackTabId;
+    const mode = recordingState?.mode === 'logs' ? 'logs' : 'video';
+
+    let stored = null;
+    if (mode === 'video') {
+        const result = await stopVideoCapture(tabId);
+        stored = !!(result && result.stored);
+    }
+    await stopRecording(tabId);
+    try {
+        await chrome.tabs.sendMessage(tabId, { action: 'stopInteractionRecording' });
+    } catch (error) {
+        // Expected when the tab was closed or is on a page without the content script.
+    }
+    return { success: true, mode, stored };
+}
+
+// content.js lives only as long as the page: after a full page load of the recorded tab, add it
+// again. Its init() asks getStatus and resumes recording interactions by itself.
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+    if (changeInfo.status !== 'complete') return;
+    const { recordingState } = await chrome.storage.local.get(['recordingState']);
+    if (recordingState && recordingState.isRecording && recordingState.tabId === tabId) {
+        await ensureContentScript(tabId);
+    }
+});
+
+/**
+ * Injects content.js unless it already answers a ping.
+ * @returns {Promise<boolean>} whether the content script is available
+ */
+async function ensureContentScript(tabId) {
+    try {
+        const response = await chrome.tabs.sendMessage(tabId, { action: 'ping' });
+        if (response && response.pong) return true;
+    } catch (error) {
+        // Not injected yet.
+    }
+    try {
+        await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+        await new Promise(resolve => setTimeout(resolve, 300));
+        return true;
+    } catch (error) {
+        console.error('Failed to inject content script:', error);
+        return false;
     }
 }
 
@@ -370,67 +602,6 @@ async function openVideoDatabase() {
             }
         };
     });
-}
-
-/**
- * Stores a video blob in IndexedDB
- * This replaces chrome.storage which has size limits (~10MB)
- * @param {Blob|string} videoData - The video blob or base64 string
- * @param {string} videoId - Unique identifier (default: 'current-video')
- * @returns {Promise<void>}
- */
-async function storeVideoBlob(videoData, videoId = 'current-video') {
-    try {
-        // Convert base64 string to Blob if needed
-        let videoBlob = videoData;
-        if (typeof videoData === 'string' && videoData.startsWith('data:')) {
-            // Extract base64 data and mime type
-            const matches = videoData.match(/^data:([^;]+);base64,(.+)$/);
-            if (matches) {
-                const mimeType = matches[1];
-                const base64Data = matches[2];
-                const binaryString = atob(base64Data);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                videoBlob = new Blob([bytes], { type: mimeType });
-            }
-        }
-
-        console.log('[VideoStorage] Storing video blob, size:', videoBlob.size, 'bytes');
-        
-        const db = await openVideoDatabase();
-        
-        return new Promise((resolve, reject) => {
-            const transaction = db.transaction([VIDEO_STORE_NAME], 'readwrite');
-            const store = transaction.objectStore(VIDEO_STORE_NAME);
-            
-            // Store video with metadata
-            const videoRecord = {
-                id: videoId,
-                blob: videoBlob,
-                timestamp: Date.now(),
-                size: videoBlob.size,
-                type: videoBlob.type || 'video/webm'
-            };
-            
-            const request = store.put(videoRecord);
-            
-            request.onsuccess = () => {
-                console.log('[VideoStorage] Video stored successfully, ID:', videoId, 'Size:', videoBlob.size, 'bytes');
-                resolve();
-            };
-            
-            request.onerror = () => {
-                console.error('[VideoStorage] Failed to store video:', request.error);
-                reject(request.error);
-            };
-        });
-    } catch (error) {
-        console.error('[VideoStorage] Error storing video:', error);
-        throw error;
-    }
 }
 
 /**
@@ -504,79 +675,111 @@ async function deleteVideoBlob(videoId = 'current-video') {
     }
 }
 
-// ============================================================================
-// Video Data Handler - Receives video from offscreen document
-// ============================================================================
-
 /**
- * Handles video data received from offscreen document
- * The offscreen document sends base64-encoded video data after recording stops
- * We convert it to a Blob and store it in IndexedDB for later export
+ * Runs one request against the shared object store (same pattern as offscreen.js).
  */
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'video-data-ready' && message.target === 'background') {
-        console.log('[Video] Received video data from offscreen document');
-        
-        // Store video in IndexedDB (async operation)
-        storeVideoBlob(message.data, 'current-video')
-            .then(() => {
-                console.log('[Video] Video data stored in IndexedDB successfully');
-                
-                // Also set a flag in chrome.storage for quick checking
-        chrome.storage.local.set({
-                    videoRecordingComplete: true,
-                    videoStoredInIndexedDB: true
-        }).then(() => {
-            sendResponse({ success: true });
-        }).catch(err => {
-                    console.warn('[Video] Failed to set storage flag:', err);
-                    sendResponse({ success: true }); // Still success, flag is optional
-                });
-            })
-            .catch(err => {
-                console.error('[Video] Failed to store video data in IndexedDB:', err);
-            sendResponse({ success: false, error: err.message });
-        });
+async function videoStoreRequest(mode, op) {
+    const db = await openVideoDatabase();
+    return new Promise((resolve, reject) => {
+        const request = op(db.transaction([VIDEO_STORE_NAME], mode).objectStore(VIDEO_STORE_NAME));
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
 
-        return true; // Keep channel open for async response
+// ============================================================================
+// Network log persistence
+// networkLogs is mirrored into IndexedDB: Chrome stops an idle service worker ~30s after its
+// last event, which used to empty the export when it ran a while after Stop.
+// ============================================================================
+
+const NETWORK_LOGS_ID = 'network-logs';
+let saveNetworkLogsTimer = null;
+
+// shortcut: rewrites the whole array on every save; move to one record per request if sessions reach 100MB+.
+async function saveNetworkLogs() {
+    clearTimeout(saveNetworkLogsTimer);
+    saveNetworkLogsTimer = null;
+    try {
+        await videoStoreRequest('readwrite', store => store.put({ id: NETWORK_LOGS_ID, logs: networkLogs }));
+    } catch (e) {
+        console.warn('[NetworkLogs] Failed to persist network logs:', e);
     }
+}
+
+function scheduleSaveNetworkLogs() {
+    if (!saveNetworkLogsTimer) saveNetworkLogsTimer = setTimeout(saveNetworkLogs, 1000);
+}
+
+// Restores logs saved by a previous worker instance; events that arrived meanwhile are kept after them.
+const networkLogsReady = (async () => {
+    try {
+        const record = await videoStoreRequest('readonly', store => store.get(NETWORK_LOGS_ID));
+        if (record && Array.isArray(record.logs)) networkLogs = record.logs.concat(networkLogs);
+    } catch (e) {
+        console.warn('[NetworkLogs] Failed to restore network logs:', e);
+    }
+})();
+
+// ============================================================================
+// Keepalive Handler - Pings from the offscreen recorder
+// ============================================================================
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // Keepalive ping from the offscreen recorder. Simply receiving it resets the service
+    // worker's idle timer; acknowledge and stop so it isn't treated as an unknown action.
+    if (message.type === 'keepalive' && message.target === 'background') {
+        sendResponse({ alive: true });
+        return true;
+    }
+
 });
 
 // Message handler
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // Type-based messages (keepalive, start/stop-recording, download URLs) are handled by
+    // other listeners; ignore them here so they don't fall through to "Unknown action".
+    if (!message || !message.action) return;
+
     console.log('Background received message:', message);
 
     switch (message.action) {
-        case 'startRecording':
-            startRecording(message.tabId)
-                .then(() => sendResponse({ success: true }))
-                .catch(error => sendResponse({ success: false, error: error.message }));
-            return true;
-
-        case 'stopRecording':
-            stopRecording(message.tabId)
-                .then(() => sendResponse({ success: true }))
-                .catch(error => sendResponse({ success: false, error: error.message }));
-            return true;
-
-        case 'startVideoCapture':
-            startVideoCapture(message.tabId)
+        case 'startSession':
+            startSession(message.tabId, message.mode)
                 .then(result => sendResponse(result))
                 .catch(error => sendResponse({ success: false, error: error.message }));
             return true;
 
-        case 'stopVideoCapture':
-            stopVideoCapture(message.tabId)
-                .then(() => sendResponse({ success: true }))
+        case 'stopSession':
+            stopSession(message.tabId)
+                .then(result => sendResponse(result))
+                .catch(error => sendResponse({ success: false, error: error.message }));
+            return true;
+
+        case 'ensureContentScript':
+            ensureContentScript(message.tabId)
+                .then(ok => sendResponse({ success: ok }))
                 .catch(error => sendResponse({ success: false, error: error.message }));
             return true;
 
         case 'getStatus':
-            sendResponse({
-                isRecording: isRecording,
-                networkLogsCount: networkLogs.length
-            });
-            break;
+            // Read the persisted flag so status is correct even after a SW restart (when the
+            // in-memory isRecording would be false while a recording is still running).
+            (async () => {
+                try {
+                    await networkLogsReady;
+                    const { recordingState } = await chrome.storage.local.get(['recordingState']);
+                    const active = !!(recordingState && recordingState.isRecording) || isRecording;
+                    sendResponse({
+                        isRecording: active,
+                        mode: recordingState ? recordingState.mode : null,
+                        networkLogsCount: networkLogs.length
+                    });
+                } catch (e) {
+                    sendResponse({ isRecording: isRecording, networkLogsCount: networkLogs.length });
+                }
+            })();
+            return true;
 
         case 'exportLogs':
             exportAllLogs(message.tabId, message.mode || 'logs')
@@ -617,19 +820,47 @@ async function startRecording(tabId) {
     try {
         console.log('Starting recording for tab:', tabId);
 
-        await chrome.debugger.attach({ tabId: tabId }, "1.3");
+        try {
+            await chrome.debugger.attach({ tabId: tabId }, "1.3");
+        } catch (attachError) {
+            // A stranded attachment from a previous crash / failed stop leaves the tab
+            // "being debugged" and makes every subsequent attach throw "Another debugger is
+            // already attached", which bricks Start for both Logs and Video modes until the
+            // extension is reloaded. Detach the orphan and retry once so it self-heals.
+            const msg = (attachError && attachError.message || '').toLowerCase();
+            if (msg.includes('already attached') || msg.includes('another debugger')) {
+                console.warn('Debugger already attached to tab, detaching orphan and retrying...');
+                try { await chrome.debugger.detach({ tabId: tabId }); } catch (e) { /* orphan may not be ours */ }
+                attachedTabs.delete(tabId);
+                await new Promise(resolve => setTimeout(resolve, 300));
+                await chrome.debugger.attach({ tabId: tabId }, "1.3");
+            } else {
+                throw attachError;
+            }
+        }
         console.log('Debugger attached to tab:', tabId);
 
         await chrome.debugger.sendCommand({ tabId: tabId }, "Network.enable");
         await chrome.debugger.sendCommand({ tabId: tabId }, "Runtime.enable");
 
+        // Let a pending restore finish first so it can't re-add the previous session's logs.
+        await networkLogsReady;
         attachedTabs.add(tabId);
         isRecording = true;
         networkLogs = [];
+        await saveNetworkLogs();
+
+        // Persist so status/stop survive a service-worker restart. Merges with any state
+        // already set by startVideoCapture (which records mode/startTime for video mode).
+        await setRecordingState({ isRecording: true, tabId: tabId, debuggerAttached: true });
 
         console.log('Recording started successfully for tab:', tabId);
     } catch (error) {
         console.error('Error starting recording:', error);
+        // Never leave a half-attached debugger behind - it would block the next Start.
+        try { await chrome.debugger.detach({ tabId: tabId }); } catch (e) { /* ignore */ }
+        attachedTabs.delete(tabId);
+        isRecording = false;
         throw error;
     }
 }
@@ -651,6 +882,7 @@ function onDebuggerEvent(source, method, params) {
             handleNetworkLoadingFailed(params, source.tabId);
             break;
     }
+    scheduleSaveNetworkLogs();
 }
 
 function handleNetworkRequest(params, tabId) {
@@ -720,6 +952,7 @@ async function handleNetworkResponse(params, tabId) {
 
                     networkLogs[requestIndex].response.body = bodyContent;
                     networkLogs[requestIndex].response.bodySize = responseBody.body.length;
+                    scheduleSaveNetworkLogs();
                 }
             } catch (error) {
                 console.warn('Could not get response body for:', networkLogs[requestIndex].url, error.message);
@@ -763,29 +996,34 @@ async function stopRecording(tabId) {
     try {
         console.log('Stopping recording for tab:', tabId);
 
-        if (attachedTabs.has(tabId)) {
+        // Best-effort detach even if attachedTabs was lost to a SW restart, so the "being
+        // debugged" banner is always cleared and the next Start isn't blocked.
+        try {
             await chrome.debugger.detach({ tabId: tabId });
-            attachedTabs.delete(tabId);
             console.log('Debugger detached from tab:', tabId);
+        } catch (e) {
+            // Not attached (or attached by something else) - nothing to detach.
         }
+        attachedTabs.delete(tabId);
 
         isRecording = false;
+        await clearRecordingState();
+        await saveNetworkLogs();
         console.log('Recording stopped successfully for tab:', tabId);
     } catch (error) {
         console.warn('Error stopping recording:', error);
         attachedTabs.delete(tabId);
+        isRecording = false;
+        await clearRecordingState();
     }
 }
 
 /**
- * Exports all captured data (network logs, interactions, snapshots, and optionally video)
- * This function:
- * 1. Retrieves all data from storage
- * 2. For video mode: Retrieves video from IndexedDB and exports it as separate file
- * 3. Generates JSON export with all data
- * 4. Generates HTML timeline (with or without video player)
- * 5. Downloads all files
- * 
+ * Exports all captured data as one zip: capture_all_<timestamp>/timeline.html, logs.json and,
+ * in video mode, video.webm. The zip is assembled in the offscreen document (service workers
+ * can't create blob URLs); the JSON and HTML reach it through IndexedDB instead of messaging,
+ * which caps out at 64MB, and the video never leaves IndexedDB until it's zipped.
+ *
  * @param {number} tabId - The tab ID
  * @param {string} mode - Export mode: 'logs' or 'video'
  * @returns {Promise<void>}
@@ -793,92 +1031,44 @@ async function stopRecording(tabId) {
 async function exportAllLogs(tabId, mode) {
     try {
         console.log('[Export] Starting export, mode:', mode);
-        
+        await networkLogsReady;
+
         // Get interaction logs and element snapshots from chrome.storage
-        const result = await chrome.storage.local.get(['interactionLogs', 'elementSnapshots']);
+        const result = await chrome.storage.local.get(['interactionLogs', 'elementSnapshots', 'videoRecordingStartTime']);
         const interactionLogs = result.interactionLogs || [];
         const elementSnapshots = result.elementSnapshots || [];
+        // When video began (video t=0). Used to align the timeline with the video player.
+        const videoStartTime = result.videoRecordingStartTime || null;
 
-        // For video mode, retrieve video from IndexedDB
+        const timestamp = Date.now();
+        const folder = `capture_all_${timestamp}`;
+        const videoFileName = 'video.webm';
+
         let videoBlob = null;
-        let videoFileName = null;
-        
         if (mode === 'video') {
-            console.log('[Export] Video mode - retrieving video from IndexedDB...');
             videoBlob = await getVideoBlob('current-video');
-            
-            if (videoBlob) {
-                // Validate video blob
-                if (!(videoBlob instanceof Blob)) {
-                    console.error('[Export] Invalid video data - not a Blob');
-                    videoBlob = null;
-                } else if (videoBlob.size === 0) {
-                    console.error('[Export] Invalid video - blob is empty (0 bytes)');
-                    videoBlob = null;
-                } else if (videoBlob.size > 500 * 1024 * 1024) {
-                    // Warn about very large videos (>500MB)
-                    console.warn('[Export] Video is very large:', videoBlob.size, 'bytes. Export may take time.');
-                } else {
-                    console.log('[Export] Video validated, size:', videoBlob.size, 'bytes, type:', videoBlob.type);
-                    
-                    // Export video as separate file
-                    const timestamp = Date.now();
-                    videoFileName = `capture_all_video_${timestamp}.webm`;
-                    
-                    // Convert blob to data URL for download
-                    // chrome.downloads.download() doesn't work with blob URLs in service workers
-                    console.log('[Export] Converting video blob to data URL for download...');
-                    try {
-                        const dataUrl = await new Promise((resolve, reject) => {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                                if (reader.result) {
-                                    console.log('[Export] Video converted to data URL, length:', reader.result.length);
-                                    resolve(reader.result);
-                                } else {
-                                    reject(new Error('FileReader returned no result'));
-                                }
-                            };
-                            reader.onerror = (error) => {
-                                console.error('[Export] FileReader error:', error);
-                                reject(new Error('Failed to read video blob: ' + error.message));
-                            };
-                            reader.readAsDataURL(videoBlob);
-                        });
-                        
-                        // Use data URL for download
-                        console.log('[Export] Starting video download...');
-                        await chrome.downloads.download({
-                            url: dataUrl,
-                            filename: videoFileName,
-                            saveAs: true
-                        });
-                        console.log('[Export] Video file exported successfully:', videoFileName);
-                    } catch (error) {
-                        console.error('[Export] Failed to export video file:', error);
-                        // Don't throw - continue with other exports
-                        // But log the error clearly
-                        console.error('[Export] Video download failed. Error:', error.message);
-                        // The HTML will still be generated with video reference
-                    }
-                }
-            } else {
+            if (!(videoBlob instanceof Blob) || videoBlob.size === 0) {
                 console.warn('[Export] No video found in IndexedDB - video recording may have failed or was not started');
+                videoBlob = null;
+            } else if (videoBlob.size > 500 * 1024 * 1024) {
+                console.warn('[Export] Video is very large:', videoBlob.size, 'bytes. Export may take time.');
             }
         }
 
         // Prepare export data structure
         const exportData = {
             exportDate: new Date().toISOString(),
+            extensionVersion: chrome.runtime.getManifest().version,
             tabId: tabId,
             mode: mode,
+            videoStartTime: videoStartTime,
             networkLogs: networkLogs,
             interactionLogs: interactionLogs,
             elementSnapshots: elementSnapshots,
-            videoData: videoBlob ? { 
-                hasVideo: true, 
+            videoData: videoBlob ? {
+                hasVideo: true,
                 videoFileName: videoFileName,
-                videoSize: videoBlob.size 
+                videoSize: videoBlob.size
             } : { hasVideo: false },
             summary: {
                 totalNetworkRequests: networkLogs.length,
@@ -887,42 +1077,19 @@ async function exportAllLogs(tabId, mode) {
             }
         };
 
-        const timestamp = Date.now();
+        const htmlContent = mode === 'video'
+            ? generateVideoTimelineHTML(exportData, videoBlob, videoFileName)
+            : generateImprovedTimelineHTML(exportData);
 
-        // Export JSON file with all data
-        console.log('[Export] Generating JSON export...');
-        const jsonString = JSON.stringify(exportData, null, 2);
-        const jsonDataUrl = 'data:application/json;charset=utf-8,' + encodeURIComponent(jsonString);
+        const files = [
+            { name: `${folder}/timeline.html`, blob: new Blob([htmlContent], { type: 'text/html' }) },
+            { name: `${folder}/logs.json`, blob: new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' }) }
+        ];
+        if (videoBlob) files.push({ name: `${folder}/${videoFileName}`, videoId: 'current-video' });
 
-        await chrome.downloads.download({
-            url: jsonDataUrl,
-            filename: `capture_all_logs_${timestamp}.json`,
-            saveAs: true
-        });
-        console.log('[Export] JSON file exported');
-
-        // Generate and export HTML based on mode
-        console.log('[Export] Generating HTML timeline...');
-        let htmlContent;
-        if (mode === 'video') {
-            // Pass video blob and filename to HTML generator
-            htmlContent = await generateVideoTimelineHTML(exportData, videoBlob, videoFileName);
-        } else {
-            htmlContent = generateImprovedTimelineHTML(exportData);
-        }
-
-        const htmlDataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent);
-
-        await chrome.downloads.download({
-            url: htmlDataUrl,
-            filename: `capture_all_timeline_${timestamp}.html`,
-            saveAs: true
-        });
-        console.log('[Export] HTML timeline exported');
-
-        // No need to clean up - we used data URL, not object URL
-
-        console.log('[Export] Export completed successfully!');
+        await videoStoreRequest('readwrite', store => store.put({ id: 'pending-export', files }));
+        await downloadViaOffscreen({ exportId: 'pending-export' }, `${folder}.zip`);
+        console.log('[Export] Zip export started:', `${folder}.zip`);
     } catch (error) {
         console.error('[Export] Error exporting logs:', error);
         throw error;
@@ -1429,7 +1596,7 @@ function generateImprovedTimelineHTML(data) {
     </div>
 
     <script>
-        const captureData = ${JSON.stringify(data, null, 2)};
+        const captureData = ${JSON.stringify(data, null, 2).replace(/</g, '\\u003c')};
         let allEvents = [];
         let isPlaying = false;
         let currentTime = 0;
@@ -1873,36 +2040,12 @@ function generateImprovedTimelineHTML(data) {
  * @param {string|null} videoFileName - The video filename (for relative path reference)
  * @returns {Promise<string>} HTML content as string
  */
-async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null) {
+function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null) {
     console.log('[VideoHTML] Generating video timeline HTML...');
-    
-    // Determine how to reference the video
-    let videoSrc = null;
-    let useDataUrl = false;
-    
-    if (videoBlob) {
-        // If video is small enough (< 10MB), embed as data URL
-        // Otherwise, use file reference
-        const maxDataUrlSize = 10 * 1024 * 1024; // 10MB
-        
-        if (videoBlob.size < maxDataUrlSize) {
-            console.log('[VideoHTML] Video is small enough, embedding as data URL');
-            // Convert blob to data URL
-            videoSrc = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result);
-                reader.onerror = () => resolve(null);
-                reader.readAsDataURL(videoBlob);
-            });
-            useDataUrl = true;
-        } else {
-            console.log('[VideoHTML] Video is too large, using file reference');
-            // Use relative path to video file
-            videoSrc = videoFileName || 'video.webm';
-        }
-    } else {
-        console.warn('[VideoHTML] No video blob provided');
-    }
+
+    // The export zip always ships the video next to this HTML, so reference it by filename.
+    const videoSrc = videoBlob ? (videoFileName || 'video.webm') : null;
+    if (!videoSrc) console.warn('[VideoHTML] No video blob provided');
 
     // Process events
     const allEvents = [];
@@ -1927,9 +2070,25 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
 
     allEvents.sort((a, b) => a.timestamp - b.timestamp);
 
-    const startTime = allEvents.length > 0 ? allEvents[0].timestamp : Date.now();
-    const endTime = allEvents.length > 0 ? allEvents[allEvents.length - 1].timestamp : Date.now();
-    const duration = endTime - startTime;
+    const firstEventTime = allEvents.length > 0 ? allEvents[0].timestamp : Date.now();
+    const lastEventTime = allEvents.length > 0 ? allEvents[allEvents.length - 1].timestamp : Date.now();
+    // Anchor the timeline to when the video actually started (video t=0) so highlighted
+    // events line up with the footage. Fall back to the first captured event for older
+    // exports or when the video start time is unavailable.
+    const startTime = data.videoStartTime || firstEventTime;
+    const endTime = lastEventTime;
+    const duration = Math.max(0, endTime - startTime);
+
+    // Only what the player needs to draw clicks on the video (t = ms since video t=0).
+    const clicks = (data.interactionLogs || [])
+        .filter(log => log.type === 'click' && log.coordinates && log.viewport)
+        .map(log => ({
+            t: log.timestamp - startTime,
+            x: log.coordinates.clientX,
+            y: log.coordinates.clientY,
+            vw: log.viewport.width,
+            vh: log.viewport.height
+        }));
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -1978,18 +2137,61 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
 
         .video-container {
             flex: 1;
+            min-height: 0;
             display: flex;
             align-items: center;
             justify-content: center;
             background: #000;
             position: relative;
+            overflow: hidden;
         }
 
         video {
-            max-width: 100%;
-            max-height: 100%;
-            width: auto;
-            height: auto;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            cursor: pointer;
+        }
+
+        .click-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .click-marker {
+            position: absolute;
+            display: none;
+            width: 44px;
+            height: 44px;
+            margin: -22px 0 0 -22px;
+            border-radius: 50%;
+            border: 3px solid #f43f5e;
+            background: rgba(244, 63, 94, 0.25);
+            box-shadow: 0 0 12px rgba(244, 63, 94, 0.6);
+        }
+
+        .click-marker::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 10px;
+            height: 10px;
+            margin: -5px 0 0 -5px;
+            border-radius: 50%;
+            background: #f43f5e;
+        }
+
+        .click-tick {
+            position: absolute;
+            top: -3px;
+            width: 2px;
+            height: 12px;
+            margin-left: -1px;
+            background: #f43f5e;
+            border-radius: 1px;
+            pointer-events: none;
         }
 
         .video-placeholder {
@@ -2051,6 +2253,7 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
             border-radius: 3px;
             position: relative;
             cursor: pointer;
+            touch-action: none;
         }
 
         .timeline-progress {
@@ -2151,12 +2354,18 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
             border-left: 3px solid #3b82f6;
         }
 
+        .log-item.selected {
+            background: #1e3a8a;
+            box-shadow: inset 3px 0 0 #f43f5e;
+        }
+
         .log-time {
             font-size: 0.75rem;
             color: #64748b;
             font-variant-numeric: tabular-nums;
-            min-width: 60px;
+            min-width: 48px;
             flex-shrink: 0;
+            padding-top: 0.125rem;
         }
 
         .log-content {
@@ -2180,10 +2389,20 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
         .method-PATCH { background: #7e22ce; color: #f3e8ff; }
 
         .log-url {
-            font-size: 0.875rem;
-            color: #e2e8f0;
-            word-break: break-all;
-            margin-top: 0.25rem;
+            font-size: 0.8125rem;
+            line-height: 1.4;
+            color: #cbd5e1;
+            overflow-wrap: anywhere;
+            margin-top: 0.375rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .log-item.selected .log-url {
+            display: block;
+            -webkit-line-clamp: unset;
         }
 
         .log-status {
@@ -2217,6 +2436,7 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
 
         .interaction-details {
             flex: 1;
+            min-width: 0;
         }
 
         .interaction-type {
@@ -2230,6 +2450,7 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
             font-size: 0.75rem;
             color: #94a3b8;
             margin-top: 0.25rem;
+            overflow-wrap: anywhere;
         }
 
         .summary-section {
@@ -2292,7 +2513,7 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
             </div>
             
             <div class="video-container" id="videoContainer">
-                ${videoSrc ? `<video id="videoPlayer" src="${videoSrc}" controls></video>` : `
+                ${videoSrc ? `<video id="videoPlayer" src="${videoSrc}" playsinline></video><div class="click-layer" id="clickLayer"></div>` : `
                 <div class="video-placeholder">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <circle cx="12" cy="12" r="10"/>
@@ -2371,10 +2592,12 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
     </div>
 
     <script>
-        const captureData = ${JSON.stringify(data, null, 2)};
         const startTime = ${startTime};
         const hasVideo = ${!!videoSrc};
-        
+        const fallbackDuration = ${duration / 1000};
+        const clicks = ${JSON.stringify(clicks).replace(/</g, '\\u003c')};
+        let seekVideo = null;
+
         // Tab switching
         document.querySelectorAll('.data-tab').forEach(tab => {
             tab.addEventListener('click', () => {
@@ -2391,6 +2614,15 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
             });
         });
 
+        // Clicking a row selects it (expanding its full text) and jumps the video to that moment.
+        document.querySelectorAll('.log-item[data-timestamp]').forEach(item => {
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.log-item.selected').forEach(el => el.classList.remove('selected'));
+                item.classList.add('selected');
+                if (seekVideo) seekVideo((Number(item.dataset.timestamp) - startTime) / 1000);
+            });
+        });
+
         if (hasVideo) {
             const video = document.getElementById('videoPlayer');
             const playBtn = document.getElementById('playBtn');
@@ -2398,32 +2630,106 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
             const timelineSlider = document.getElementById('timelineSlider');
             const timelineProgress = document.getElementById('timelineProgress');
             const speedControl = document.getElementById('speedControl');
+            const clickLayer = document.getElementById('clickLayer');
+            const PLAY_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+            const PAUSE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+            const CLICK_SHOW_SECONDS = 1.2;
+            const logItems = Array.from(document.querySelectorAll('.log-item[data-timestamp]'))
+                .map(el => ({ el, timestamp: Number(el.dataset.timestamp) }));
+            const markers = clicks.map(() => {
+                const marker = document.createElement('div');
+                marker.className = 'click-marker';
+                clickLayer.appendChild(marker);
+                return marker;
+            });
+            let durationPending = false;
+            let pendingSeek = null;
+            let lastHighlightBucket = -1;
 
-            // Play/Pause
-            playBtn.addEventListener('click', () => {
-                if (video.paused) {
-                    video.play();
-                    playBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
-                } else {
-                    video.pause();
-                    playBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
+            function getDuration() {
+                return isFinite(video.duration) && video.duration > 0 ? video.duration : fallbackDuration;
+            }
+
+            function currentPosition() {
+                return durationPending ? (pendingSeek || 0) : video.currentTime;
+            }
+
+            // MediaRecorder WebM files carry no duration; seeking past the end makes the browser work it out.
+            function onMetadata() {
+                if (isFinite(video.duration)) {
+                    renderTicks();
+                    render();
+                    return;
                 }
+                durationPending = true;
+                video.addEventListener('durationchange', function resolved() {
+                    if (!isFinite(video.duration)) return;
+                    video.removeEventListener('durationchange', resolved);
+                    // Let the seek to the end finish first; overlapping seeks can leave the player off 0.
+                    const finish = () => {
+                        durationPending = false;
+                        video.currentTime = pendingSeek || 0;
+                        pendingSeek = null;
+                        renderTicks();
+                        render();
+                    };
+                    if (video.seeking) video.addEventListener('seeked', finish, { once: true });
+                    else finish();
+                });
+                video.currentTime = 1e101;
+            }
+            if (video.readyState >= 1) onMetadata();
+            else video.addEventListener('loadedmetadata', onMetadata, { once: true });
+
+            function seekTo(seconds) {
+                const target = Math.max(0, Math.min(seconds, getDuration()));
+                if (durationPending) pendingSeek = target;
+                else video.currentTime = target;
+                render();
+            }
+            seekVideo = seekTo;
+
+            function togglePlay() {
+                if (video.paused || video.ended) video.play();
+                else video.pause();
+            }
+
+            playBtn.addEventListener('click', togglePlay);
+            video.addEventListener('click', togglePlay);
+            document.addEventListener('keydown', (e) => {
+                if (e.code !== 'Space' || e.target.closest('button, select, input')) return;
+                e.preventDefault();
+                togglePlay();
             });
 
-            // Time update
-            video.addEventListener('timeupdate', () => {
-                const progress = (video.currentTime / video.duration) * 100;
-                timelineProgress.style.width = progress + '%';
-                timeDisplay.textContent = formatTime(video.currentTime) + ' / ' + formatTime(video.duration);
-                
-                highlightCurrentEvents(video.currentTime * 1000);
+            video.addEventListener('play', () => {
+                playBtn.innerHTML = PAUSE_ICON;
+                requestAnimationFrame(loop);
             });
+            video.addEventListener('pause', () => {
+                playBtn.innerHTML = PLAY_ICON;
+                render();
+            });
+            video.addEventListener('seeked', render);
+            window.addEventListener('resize', render);
 
-            // Timeline click
-            timelineSlider.addEventListener('click', (e) => {
+            // Redraw every frame while playing; timeupdate only fires ~4 times a second.
+            function loop() {
+                render();
+                if (!video.paused && !video.ended) requestAnimationFrame(loop);
+            }
+
+            // Scrubber: click or drag.
+            function seekFromPointer(e) {
                 const rect = timelineSlider.getBoundingClientRect();
-                const pos = (e.clientX - rect.left) / rect.width;
-                video.currentTime = pos * video.duration;
+                seekTo(((e.clientX - rect.left) / rect.width) * getDuration());
+            }
+            timelineSlider.addEventListener('pointerdown', (e) => {
+                timelineSlider.setPointerCapture(e.pointerId);
+                seekFromPointer(e);
+            });
+            timelineSlider.addEventListener('pointermove', (e) => {
+                if (timelineSlider.hasPointerCapture(e.pointerId)) seekFromPointer(e);
             });
 
             // Speed control
@@ -2431,7 +2737,70 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
                 video.playbackRate = parseFloat(e.target.value);
             });
 
+            function render() {
+                const current = currentPosition();
+                const total = getDuration();
+                timelineProgress.style.width = (total ? Math.min(100, (current / total) * 100) : 0) + '%';
+                timeDisplay.textContent = formatTime(current) + ' / ' + formatTime(total);
+                renderClicks(current);
+                const bucket = Math.floor(current * 4);
+                if (bucket !== lastHighlightBucket) {
+                    lastHighlightBucket = bucket;
+                    highlightCurrentEvents(current * 1000);
+                }
+            }
+
+            function renderTicks() {
+                const total = getDuration();
+                if (!total) return;
+                timelineSlider.querySelectorAll('.click-tick').forEach(tick => tick.remove());
+                clicks.forEach(click => {
+                    const tick = document.createElement('div');
+                    tick.className = 'click-tick';
+                    tick.style.left = Math.max(0, Math.min(100, (click.t / 1000 / total) * 100)) + '%';
+                    timelineSlider.appendChild(tick);
+                });
+            }
+
+            // Where the frame is drawn inside the video element (object-fit: contain).
+            function frameBox() {
+                const vW = video.videoWidth;
+                const vH = video.videoHeight;
+                const scale = Math.min(video.clientWidth / vW, video.clientHeight / vH);
+                return { vW, vH, scale, left: (video.clientWidth - vW * scale) / 2, top: (video.clientHeight - vH * scale) / 2 };
+            }
+
+            // Tab capture letterboxes the tab's viewport into the frame, centered and aspect-preserved.
+            function clickPoint(click, box) {
+                const s = Math.min(box.vW / click.vw, box.vH / click.vh);
+                const fx = (box.vW - click.vw * s) / 2 + click.x * s;
+                const fy = (box.vH - click.vh * s) / 2 + click.y * s;
+                return { x: box.left + fx * box.scale, y: box.top + fy * box.scale };
+            }
+
+            function renderClicks(current) {
+                if (!video.videoWidth) return;
+                const box = frameBox();
+                clicks.forEach((click, i) => {
+                    const marker = markers[i];
+                    const age = current - click.t / 1000;
+                    // Small negative slack so seeking exactly onto a click still shows it.
+                    if (age < -0.15 || age > CLICK_SHOW_SECONDS) {
+                        marker.style.display = 'none';
+                        return;
+                    }
+                    const point = clickPoint(click, box);
+                    const progress = Math.max(0, age) / CLICK_SHOW_SECONDS;
+                    marker.style.display = 'block';
+                    marker.style.left = point.x + 'px';
+                    marker.style.top = point.y + 'px';
+                    marker.style.opacity = String(1 - progress * 0.85);
+                    marker.style.transform = 'scale(' + (0.7 + progress * 0.6) + ')';
+                });
+            }
+
             function formatTime(seconds) {
+                if (!isFinite(seconds)) seconds = 0;
                 const mins = Math.floor(seconds / 60);
                 const secs = Math.floor(seconds % 60);
                 return mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
@@ -2439,16 +2808,12 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
 
             function highlightCurrentEvents(currentTimeMs) {
                 const currentTimestamp = startTime + currentTimeMs;
-                
-                document.querySelectorAll('.log-item').forEach(item => {
-                    const timestamp = parseInt(item.dataset.timestamp);
-                    if (Math.abs(timestamp - currentTimestamp) < 1000) {
-                        item.classList.add('active');
-                    } else {
-                        item.classList.remove('active');
-                    }
+                logItems.forEach(({ el, timestamp }) => {
+                    el.classList.toggle('active', Math.abs(timestamp - currentTimestamp) < 1000);
                 });
             }
+
+            render();
         }
     </script>
 </body>
@@ -2460,13 +2825,17 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
         return minutes > 0 ? `${minutes}m ${seconds % 60}s` : `${seconds}s`;
     }
 
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     function generateNetworkList(logs, startTime) {
         if (!logs || logs.length === 0) return '<li class="log-item"><div class="log-content">No network requests recorded</div></li>';
 
         return logs.map(log => {
             const relativeTime = ((log.timestamp - startTime) / 1000).toFixed(1);
-            const method = log.method || 'GET';
-            const url = log.url;
+            const method = escapeHtml(log.method || 'GET');
+            const url = escapeHtml(log.url || '');
             const status = log.response ? log.response.status : 'pending';
             const statusClass = status >= 200 && status < 300 ? 'status-success' : (status === 'pending' ? 'status-pending' : 'status-error');
 
@@ -2476,9 +2845,9 @@ async function generateVideoTimelineHTML(data, videoBlob = null, videoFileName =
                     <div class="log-content">
                         <div>
                             <span class="log-method method-${method}">${method}</span>
-                            <span class="log-status ${statusClass}">${status}</span>
+                            <span class="log-status ${statusClass}">${escapeHtml(status)}</span>
                         </div>
-                        <div class="log-url">${url}</div>
+                        <div class="log-url" title="${url}">${url}</div>
                     </div>
                 </li>
             `;
@@ -2538,6 +2907,8 @@ function clearAllLogs() {
     networkLogs = [];
     videoBlob = null;
     chrome.storage.local.remove(['interactionLogs', 'elementSnapshots', 'recordedVideoBlob']);
+    videoStoreRequest('readwrite', store => store.delete(NETWORK_LOGS_ID))
+        .catch(e => console.warn('[NetworkLogs] Failed to clear saved network logs:', e));
     console.log('All logs cleared');
 }
 
