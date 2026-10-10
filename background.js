@@ -2213,14 +2213,12 @@ function generateImprovedTimelineHTML(data) {
  * - Left side: Video player with controls
  * - Right side: Synchronized logs (Network/Interactions/Snapshots)
  * 
- * The video is referenced either as:
- * - A data URL (if small enough and provided as blob)
- * - A relative file path (if exported separately)
+ * The video is referenced by file name; the export zip ships it next to this HTML.
  * 
  * @param {Object} data - Export data with logs and metadata
- * @param {Blob|null} videoBlob - The video blob (optional, for data URL embedding)
+ * @param {Blob|null} videoBlob - The video blob (only checked for presence)
  * @param {string|null} videoFileName - The video filename (for relative path reference)
- * @returns {Promise<string>} HTML content as string
+ * @returns {string} HTML content as string
  */
 function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null) {
     console.log('[VideoHTML] Generating video timeline HTML...');
