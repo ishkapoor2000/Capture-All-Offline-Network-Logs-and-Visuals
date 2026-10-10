@@ -7,6 +7,176 @@
 let mediaRecorder = null;
 let recordedChunks = [];
 let mediaStream = null; // Keep reference to stream for cleanup
+let keepAliveInterval = null; // Pings the service worker so it isn't torn down mid-recording
+let lastStoreOk = false; // Whether the last recording was written to IndexedDB
+
+// Must match the IndexedDB helpers in background.js - both run on the extension origin and
+// share the database, so the blob is stored here instead of being base64'd over messaging
+// (which hits the 64MB message cap on longer recordings).
+const VIDEO_DB_NAME = 'CaptureAllVideoDB';
+const VIDEO_DB_VERSION = 1;
+const VIDEO_STORE_NAME = 'videos';
+
+function openVideoDatabase() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(VIDEO_DB_NAME, VIDEO_DB_VERSION);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(VIDEO_STORE_NAME)) {
+                db.createObjectStore(VIDEO_STORE_NAME, { keyPath: 'id', autoIncrement: true });
+            }
+        };
+    });
+}
+
+async function videoStoreRequest(mode, op) {
+    const db = await openVideoDatabase();
+    return new Promise((resolve, reject) => {
+        const request = op(db.transaction([VIDEO_STORE_NAME], mode).objectStore(VIDEO_STORE_NAME));
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function putVideo(blob) {
+    return videoStoreRequest('readwrite', store => store.put({
+        id: 'current-video',
+        blob,
+        timestamp: Date.now(),
+        size: blob.size,
+        type: blob.type || 'video/webm'
+    }));
+}
+
+/**
+ * Builds the export zip listed in an IndexedDB record and returns a blob: URL for the background
+ * to download (service workers can't create blob URLs).
+ * @param {{exportId: string}} payload
+ */
+async function makeDownloadUrl({ exportId }) {
+    const record = await videoStoreRequest('readonly', store => store.get(exportId));
+    if (!record || !Array.isArray(record.files)) throw new Error('Export not found in IndexedDB');
+
+    const entries = [];
+    for (const file of record.files) {
+        let blob = file.blob;
+        if (file.videoId) {
+            const video = await videoStoreRequest('readonly', store => store.get(file.videoId));
+            if (!video || !video.blob) throw new Error('Video not found in IndexedDB');
+            blob = video.blob;
+        }
+        entries.push({ name: file.name, blob });
+    }
+
+    const zip = await buildZip(entries);
+    await videoStoreRequest('readwrite', store => store.delete(exportId));
+    return URL.createObjectURL(zip);
+}
+
+const CRC_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+        table[n] = c >>> 0;
+    }
+    return table;
+})();
+
+function crc32(bytes) {
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) crc = CRC_TABLE[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+/**
+ * Writes a standard zip. Text files are deflated with the platform's CompressionStream; the
+ * video is already compressed, so it is stored as-is.
+ * shortcut: no ZIP64, so each file and the whole zip must stay under 4GB; add ZIP64 records if recordings get that big.
+ * @param {{name: string, blob: Blob}[]} entries
+ * @returns {Promise<Blob>}
+ */
+async function buildZip(entries) {
+    const now = new Date();
+    const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+    const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+    const parts = [];
+    const centralParts = [];
+    let offset = 0;
+
+    for (const { name, blob } of entries) {
+        const raw = new Uint8Array(await blob.arrayBuffer());
+        const deflate = !blob.type.startsWith('video/');
+        const data = deflate
+            ? new Uint8Array(await new Response(blob.stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer())
+            : null;
+        const nameBytes = new TextEncoder().encode(name);
+        const crc = crc32(raw);
+        const compressedSize = deflate ? data.length : raw.length;
+
+        // Fields shared by the local and central headers, starting at the "flags" field.
+        const writeCommon = (view, at) => {
+            view.setUint16(at, 0x0800, true); // UTF-8 file names
+            view.setUint16(at + 2, deflate ? 8 : 0, true);
+            view.setUint16(at + 4, dosTime, true);
+            view.setUint16(at + 6, dosDate, true);
+            view.setUint32(at + 8, crc, true);
+            view.setUint32(at + 12, compressedSize, true);
+            view.setUint32(at + 16, raw.length, true);
+            view.setUint16(at + 20, nameBytes.length, true);
+        };
+
+        const local = new DataView(new ArrayBuffer(30));
+        local.setUint32(0, 0x04034b50, true);
+        local.setUint16(4, 20, true);
+        writeCommon(local, 6);
+        parts.push(local, nameBytes, deflate ? data : blob);
+
+        const central = new DataView(new ArrayBuffer(46));
+        central.setUint32(0, 0x02014b50, true);
+        central.setUint16(4, 20, true);
+        central.setUint16(6, 20, true);
+        writeCommon(central, 8);
+        central.setUint32(42, offset, true);
+        centralParts.push(central, nameBytes);
+
+        offset += 30 + nameBytes.length + compressedSize;
+    }
+
+    const centralSize = centralParts.reduce((sum, part) => sum + part.byteLength, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(8, entries.length, true);
+    end.setUint16(10, entries.length, true);
+    end.setUint32(12, centralSize, true);
+    end.setUint32(16, offset, true);
+
+    return new Blob([...parts, ...centralParts, end], { type: 'application/zip' });
+}
+
+/**
+ * Pings the background service worker periodically. MV3 service workers are torn down after
+ * ~30s of inactivity; while a recording is running that would drop the recording state (the
+ * popup would show "Ready" and disable Stop) and stop network logging. Receiving a message
+ * resets the worker's idle timer, keeping it alive for the duration of the recording.
+ */
+function startKeepAlive() {
+    stopKeepAlive();
+    keepAliveInterval = setInterval(() => {
+        chrome.runtime.sendMessage({ type: 'keepalive', target: 'background' }).catch(() => {
+            // Background may be momentarily unavailable; the next tick will retry.
+        });
+    }, 20000); // Well under the ~30s idle timeout
+}
+
+function stopKeepAlive() {
+    if (keepAliveInterval) {
+        clearInterval(keepAliveInterval);
+        keepAliveInterval = null;
+    }
+}
 
 /**
  * Message handler for communication with background script
@@ -34,14 +204,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.log('[Offscreen] Received stop-recording message');
         stopRecording()
             .then(() => {
-                console.log('[Offscreen] Recording stopped successfully');
-                sendResponse({ success: true });
+                console.log('[Offscreen] Recording stopped successfully, stored:', lastStoreOk);
+                sendResponse({ success: true, stored: lastStoreOk });
             })
             .catch(error => {
                 console.error('[Offscreen] Failed to stop recording:', error);
-                sendResponse({ success: false, error: error.message });
+                sendResponse({ success: false, stored: false, error: error.message });
             });
         return true; // Keep channel open for async response
+    } else if (message.type === 'make-download-url') {
+        makeDownloadUrl(message.data)
+            .then(url => sendResponse({ success: true, url }))
+            .catch(error => sendResponse({ success: false, error: error.message }));
+        return true;
+    } else if (message.type === 'revoke-url') {
+        URL.revokeObjectURL(message.data.url);
+        sendResponse({ success: true });
     }
 });
 
@@ -81,6 +259,7 @@ async function startRecording(streamId) {
         
         // Reset chunks
         recordedChunks = [];
+        lastStoreOk = false;
         
         // Validate stream ID
         if (!streamId) {
@@ -88,17 +267,20 @@ async function startRecording(streamId) {
         }
         
         // Get media stream from Chrome's tabCapture API
-        // IMPORTANT: For Chrome tab capture, we need to use the correct constraint format
-        // The 'mandatory' property is deprecated, use the new format
+        // IMPORTANT: For Chrome tab capture, the chromeMediaSource/chromeMediaSourceId
+        // constraints are only recognized inside a legacy `mandatory` block. Placing them
+        // as plain members of `video` makes getUserMedia ignore them (OverconstrainedError),
+        // so recording never starts.
         console.log('[Offscreen] Requesting media stream from getUserMedia...');
-        
-        // Use the correct format for Chrome tab capture
+
+        // Use the mandatory-constraint format required for Chrome tab capture
         const mediaConstraints = {
             audio: false, // Tab capture audio requires additional setup
             video: {
-                // New format for Chrome tab capture
-                chromeMediaSource: 'tab',
-                chromeMediaSourceId: streamId
+                mandatory: {
+                    chromeMediaSource: 'tab',
+                    chromeMediaSourceId: streamId
+                }
             }
         };
 
@@ -247,58 +429,14 @@ async function startRecording(streamId) {
                     throw new Error('Recorded video is empty (0 bytes)');
                 }
 
-                // Convert blob to base64 data URL for transmission
-                // This allows us to send it via chrome.runtime.sendMessage
-                console.log('[Offscreen] Converting blob to base64...');
-                const base64data = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    
-                    reader.onloadend = () => {
-                        if (reader.result) {
-                            console.log('[Offscreen] Base64 conversion complete, length:', reader.result.length);
-                            resolve(reader.result);
-                        } else {
-                            reject(new Error('FileReader returned no result'));
-                        }
-                    };
-                    
-                    reader.onerror = (error) => {
-                        console.error('[Offscreen] FileReader error:', error);
-                        reject(new Error('Failed to read blob: ' + error.message));
-                    };
-                    
-                    reader.readAsDataURL(blob);
-                });
-                
-                // Send video data to background script
-                // Background script will store it in IndexedDB
-                console.log('[Offscreen] Sending video data to background script...');
-                try {
-                    await chrome.runtime.sendMessage({
-                        type: 'video-data-ready',
-                        target: 'background',
-                        data: base64data
-                    });
-                    console.log('[Offscreen] Video data sent to background successfully');
-                } catch (sendError) {
-                    console.error('[Offscreen] Failed to send video data to background:', sendError);
-                    // Don't throw - video was recorded, just failed to send
-                    // User can try exporting again
-                }
-                
+                await putVideo(blob);
+                lastStoreOk = true;
+                console.log('[Offscreen] Video stored in IndexedDB');
             } catch (processingError) {
                 console.error('[Offscreen] Error processing video:', processingError);
-                // Try to notify background script of the error
-                try {
-                    await chrome.runtime.sendMessage({
-                        type: 'video-data-error',
-                        target: 'background',
-                        error: processingError.message
-                    });
-                } catch (e) {
-                    // Ignore - background might not be listening
-                }
             } finally {
+                // Recording is done - stop pinging the service worker.
+                stopKeepAlive();
                 // Always clean up media stream tracks
                 if (mediaStream) {
                     mediaStream.getTracks().forEach(track => {
@@ -313,14 +451,6 @@ async function startRecording(streamId) {
         // Handle MediaRecorder errors
         mediaRecorder.onerror = (event) => {
             console.error('[Offscreen] MediaRecorder error:', event.error);
-            // Try to notify background script
-            chrome.runtime.sendMessage({
-                type: 'video-recording-error',
-                target: 'background',
-                error: event.error?.message || 'Unknown MediaRecorder error'
-            }).catch(() => {
-                // Ignore if background isn't listening
-            });
         };
 
         // Start recording with 1-second chunks
@@ -341,6 +471,8 @@ async function startRecording(streamId) {
             mediaRecorder.start(timeslice);
             console.log('[Offscreen] MediaRecorder started, recording in', timeslice, 'ms chunks');
             console.log('[Offscreen] MediaRecorder state after start:', mediaRecorder.state);
+            // Keep the service worker alive for the duration of the recording.
+            startKeepAlive();
         } catch (startError) {
             console.error('[Offscreen] Error starting MediaRecorder:', startError);
             // Clean up
@@ -353,13 +485,14 @@ async function startRecording(streamId) {
         
     } catch (error) {
         console.error('[Offscreen] Error starting recording:', error);
-        
+
         // Clean up on error
+        stopKeepAlive();
         if (mediaStream) {
             mediaStream.getTracks().forEach(track => track.stop());
             mediaStream = null;
         }
-        
+
         if (mediaRecorder && mediaRecorder.state !== 'inactive') {
             try {
                 mediaRecorder.stop();
@@ -429,6 +562,7 @@ async function stopRecording() {
         
         // Stop the recorder
         try {
+            lastStoreOk = false;
             mediaRecorder.stop();
             console.log('[Offscreen] Stop command sent to MediaRecorder');
             

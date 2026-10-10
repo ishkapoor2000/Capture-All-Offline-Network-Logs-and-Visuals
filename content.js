@@ -83,10 +83,14 @@ function stopInteractionRecording() {
     console.log('Interaction recording stopped');
 }
 
+// Clicks often land on an icon or span inside the real control; record the control.
+const ACTIONABLE = 'a, button, input, select, textarea, summary, label, [onclick], [role="button"], [role="link"], [role="menuitem"], [role="tab"], [role="checkbox"], [role="radio"], [role="switch"], [role="option"]';
+
 function handleClick(event) {
     if (!isRecordingInteractions) return;
 
-    const elementData = getElementData(event.target);
+    const target = event.target instanceof Element ? (event.target.closest(ACTIONABLE) || event.target) : event.target;
+    const elementData = getElementData(target);
     const coordinates = {
         clientX: event.clientX,
         clientY: event.clientY,
@@ -279,7 +283,8 @@ function getCssSelector(element) {
 
 function getRelevantAttributes(element) {
     const attrs = {};
-    const relevantAttrs = ['href', 'src', 'alt', 'title', 'name', 'type', 'value', 'placeholder'];
+    // aria-label and role name icon-only controls (a bell, a hamburger menu) in snapshots and the interaction list.
+    const relevantAttrs = ['href', 'src', 'alt', 'title', 'name', 'type', 'value', 'placeholder', 'aria-label', 'role'];
 
     relevantAttrs.forEach(attr => {
         if (element.hasAttribute(attr)) {
