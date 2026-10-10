@@ -48,6 +48,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 	document.getElementById('exportBtn').addEventListener('click', exportLogs);
 	document.getElementById('clearBtn').addEventListener('click', clearLogs);
 
+	setupMotion();
+
 	// Refresh status (button states) and stats every 2 seconds while the popup is open, so
 	// the UI stays correct even if the recording state changes underneath it.
 	setInterval(() => {
@@ -114,8 +116,60 @@ function switchMode(mode) {
 
 function showPageInfo(message, isError = false) {
 	const pageInfo = document.getElementById('pageInfo');
-	pageInfo.textContent = message;
+	if (pageInfo.textContent !== message) {
+		pageInfo.textContent = message;
+		replay(pageInfo, 'swap');
+	}
 	pageInfo.classList.toggle('is-error', isError);
+}
+
+// Restarts a one-shot CSS animation class.
+function replay(el, className) {
+	el.classList.remove(className);
+	void el.offsetWidth;
+	el.classList.add(className);
+}
+
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Ripple from the pointer on [data-ripple] buttons, and a cursor spotlight on cards and buttons.
+function setupMotion() {
+	document.addEventListener('pointerdown', (e) => {
+		const host = e.target.closest('[data-ripple]');
+		if (!host || host.disabled || reduceMotion) return;
+		const rect = host.getBoundingClientRect();
+		const size = Math.max(rect.width, rect.height) * 2.2;
+		const ink = document.createElement('span');
+		ink.className = 'ripple';
+		ink.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - rect.left - size / 2}px;top:${e.clientY - rect.top - size / 2}px`;
+		host.appendChild(ink);
+		ink.addEventListener('animationend', () => ink.remove());
+	});
+	document.addEventListener('pointermove', (e) => {
+		const card = e.target.closest('.stat-card, .control-btn');
+		if (!card) return;
+		const rect = card.getBoundingClientRect();
+		card.style.setProperty('--mx', `${e.clientX - rect.left}px`);
+		card.style.setProperty('--my', `${e.clientY - rect.top}px`);
+	});
+}
+
+// Odometer: each digit is its own span (so textContent stays the plain number) that CSS rolls into place.
+function setDigits(el, text) {
+	if (el.textContent === text) return false;
+	if (el.textContent.length !== text.length || !el.querySelector('.dg, .sep')) {
+		el.replaceChildren(...[...text].map(ch => {
+			const span = document.createElement('span');
+			span.className = /\d/.test(ch) ? 'dg' : 'sep';
+			span.textContent = ch;
+			return span;
+		}));
+	}
+	[...el.children].forEach((span, i) => {
+		span.textContent = text[i];
+		if (span.className === 'dg') span.style.setProperty('--d', text[i]);
+	});
+	return true;
 }
 
 async function updateStatus() {
@@ -136,11 +190,13 @@ async function updateStatus() {
 
 			if (isRecording) {
 				statusDot.classList.add('recording');
+				if (statusText.textContent !== 'Recording') replay(statusText, 'swap');
 				statusText.textContent = 'Recording';
 				startBtn.disabled = true;
 				stopBtn.disabled = false;
 			} else {
 				statusDot.classList.remove('recording');
+				if (statusText.textContent !== 'Ready') replay(statusText, 'swap');
 				statusText.textContent = 'Ready';
 				startBtn.disabled = false;
 				stopBtn.disabled = true;
@@ -177,11 +233,7 @@ async function updateStats() {
 
 function setCount(id, value) {
 	const el = document.getElementById(id);
-	if (el.textContent === String(value)) return;
-	el.textContent = value;
-	el.classList.remove('bump');
-	void el.offsetWidth; // restart the animation
-	el.classList.add('bump');
+	if (setDigits(el, String(value))) replay(el, 'bump');
 }
 
 function updateVideoDuration() {
@@ -191,8 +243,8 @@ function updateVideoDuration() {
 	const minutes = Math.floor(elapsed / 60000);
 	const seconds = Math.floor((elapsed % 60000) / 1000);
 
-	document.getElementById('videoDuration').textContent =
-		`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+	setDigits(document.getElementById('videoDuration'),
+		`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
 
 	// Update size estimate (rough estimate: 1MB per 10 seconds)
 	const estimatedSizeMB = Math.round((elapsed / 10000) * 10) / 10;
@@ -293,6 +345,13 @@ async function captureElements() {
 			action: 'captureElements'
 		});
 		showNotification('Elements captured', 'success');
+		if (!reduceMotion) {
+			const flash = document.createElement('div');
+			flash.className = 'shutter';
+			flash.addEventListener('animationend', () => flash.remove());
+			document.body.appendChild(flash);
+		}
+		replay(document.getElementById('captureBtn'), 'snapped');
 		setTimeout(updateStats, 500);
 	} catch (error) {
 		console.warn('Could not capture elements:', error);
@@ -367,7 +426,7 @@ function showNotification(message, type = 'success') {
 	document.body.appendChild(notification);
 
 	setTimeout(() => {
-		notification.style.opacity = '0';
+		notification.classList.add('leaving');
 		setTimeout(() => notification.remove(), 300);
 	}, 3000);
 }

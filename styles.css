@@ -16,6 +16,10 @@
     --focus: #ce2c31;
     --shadow: 0 1px 2px rgba(24, 24, 27, 0.06), 0 8px 24px -12px rgba(24, 24, 27, 0.18);
     --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    /* Springs sampled into linear(): soft settles with ~1% overshoot, bouncy with ~9%. */
+    --spring: linear(0, 0.0198 1%, 0.0793 2.1%, 0.3115 5.2%, 0.5823 9.3%, 0.7792 13.5%, 0.8979 17.6%, 0.9618 21.8%, 0.9937 26.4%, 1.0082 31.7%, 1.0118 37.9%, 1.0068 50%, 0.9999 75%, 1);
+    --bounce: linear(0, 0.0236 1.1%, 0.0951 2.3%, 0.3793 5.8%, 0.6843 10.2%, 0.9021 14.6%, 1.0236 19.3%, 1.0783 23.6%, 1.0915 27.5%, 1.0804 31.9%, 1.0265 41.5%, 0.9978 51.6%, 0.9933 62%, 1.0004 85%, 1);
     --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
 }
 
@@ -81,8 +85,59 @@ button:focus-visible {
 .container > :nth-child(8) { animation-delay: 210ms; }
 
 @keyframes rise {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: none; }
+    from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
+    to { opacity: 1; transform: none; filter: none; }
+}
+
+@keyframes swap {
+    from { opacity: 0; transform: translateY(4px); filter: blur(4px); }
+}
+
+.swap {
+    animation: swap 0.4s var(--ease-out);
+}
+
+/* Ink from the pointer on buttons marked data-ripple (popup.js adds the span). */
+[data-ripple] {
+    position: relative;
+    overflow: hidden;
+}
+
+.ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.2;
+    pointer-events: none;
+    transform: scale(0);
+    animation: ink 0.6s var(--ease-out) forwards;
+}
+
+@keyframes ink {
+    to { transform: scale(1); opacity: 0; }
+}
+
+/* Odometer digits: each .dg keeps its digit as text; the column 0-9 slides to it. */
+.dg {
+    position: relative;
+    display: inline-block;
+    width: 1ch;
+    height: var(--lh);
+    overflow: hidden;
+    vertical-align: top;
+    color: transparent;
+}
+
+.dg::before {
+    content: '0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9';
+    position: absolute;
+    left: 0;
+    top: 0;
+    white-space: pre;
+    line-height: var(--lh);
+    color: var(--text);
+    transform: translateY(calc(var(--d, 0) * var(--lh) * -1));
+    transition: transform 0.6s var(--spring);
 }
 
 /* Header */
@@ -105,6 +160,19 @@ button:focus-visible {
     background: var(--text);
     display: grid;
     place-items: center;
+    transition: transform 0.45s var(--bounce);
+}
+
+.logo-area:hover .logo-mark {
+    transform: rotate(-8deg) scale(1.06);
+}
+
+body:has(.status-dot.recording) .logo-mark span {
+    animation: breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes breathe {
+    50% { transform: scale(0.72); }
 }
 
 .logo-mark span {
@@ -138,7 +206,7 @@ h1 {
     font-size: 12px;
     font-weight: 550;
     color: var(--text-2);
-    transition: border-color 0.2s var(--ease), color 0.2s var(--ease), background 0.2s var(--ease);
+    transition: border-color 0.3s var(--ease), color 0.3s var(--ease), background 0.3s var(--ease);
 }
 
 .status-badge:has(.recording) {
@@ -174,8 +242,9 @@ h1 {
     to { transform: scale(3); opacity: 0; }
 }
 
-/* Mode switch (segmented control) */
+/* Mode switch (segmented control): one thumb slides between the two options. */
 .mode-tabs {
+    position: relative;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 2px;
@@ -185,7 +254,25 @@ h1 {
     border-radius: 10px;
 }
 
+.mode-thumb {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    left: 3px;
+    width: calc(50% - 4px);
+    border-radius: 7px;
+    background: var(--seg-active);
+    box-shadow: var(--shadow);
+    transition: transform 0.55s var(--spring);
+}
+
+.mode-tabs:has(#videoModeTab.active) .mode-thumb {
+    transform: translateX(calc(100% + 2px));
+}
+
 .mode-tab {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -198,7 +285,16 @@ h1 {
     font-size: 12.5px;
     font-weight: 550;
     cursor: pointer;
-    transition: background 0.18s var(--ease), color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+    transition: color 0.25s var(--ease), transform 0.15s var(--ease);
+}
+
+.mode-tab svg {
+    transition: color 0.25s var(--ease), transform 0.45s var(--bounce);
+}
+
+.mode-tab:hover svg,
+.mode-tab.active svg {
+    transform: scale(1.12);
 }
 
 .mode-tab:hover {
@@ -206,9 +302,7 @@ h1 {
 }
 
 .mode-tab.active {
-    background: var(--seg-active);
     color: var(--text);
-    box-shadow: var(--shadow);
 }
 
 .mode-tab.active svg {
@@ -242,7 +336,32 @@ h1 {
 }
 
 .stat-card {
+    position: relative;
     padding: 12px 14px;
+}
+
+/* Cursor spotlight on stat cards and secondary buttons (popup.js sets --mx / --my). */
+.stat-card,
+.control-btn {
+    isolation: isolate;
+}
+
+.stat-card::before,
+.control-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: radial-gradient(160px circle at var(--mx, -200px) var(--my, -200px), var(--accent-soft), transparent 70%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s var(--ease);
+}
+
+.stat-card:hover::before,
+.control-btn:hover:not(:disabled)::before {
+    opacity: 1;
 }
 
 .stat-card + .stat-card {
@@ -250,6 +369,7 @@ h1 {
 }
 
 .stat-value {
+    --lh: 1.15em;
     font-size: 21px;
     font-weight: 600;
     letter-spacing: -0.02em;
@@ -258,11 +378,19 @@ h1 {
 }
 
 .stat-value.bump {
-    animation: bump 0.32s var(--ease);
+    animation: bump 0.5s var(--bounce);
+}
+
+.stat-value.bump .dg::before {
+    animation: ink-flash 0.9s var(--ease-out);
 }
 
 @keyframes bump {
-    40% { transform: translateY(-2px); color: var(--accent); }
+    40% { transform: translateY(-2px) scale(1.04); }
+}
+
+@keyframes ink-flash {
+    0%, 30% { color: var(--accent); }
 }
 
 .stat-label {
@@ -273,13 +401,39 @@ h1 {
 
 /* Live recording card (popup.js toggles display between flex and none) */
 .video-info-card {
+    position: relative;
     align-items: center;
     gap: 12px;
     padding: 12px 14px;
     border-radius: 12px;
     background: var(--accent-soft);
     color: var(--text);
-    animation: rise 0.3s var(--ease) both;
+    animation: rise 0.4s var(--ease-out) both;
+}
+
+/* A light runs around the card while recording. */
+.video-info-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: conic-gradient(from var(--angle), transparent 0 65%, var(--accent) 88%, transparent 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    animation: beam 3.2s linear infinite;
+}
+
+@property --angle {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+}
+
+@keyframes beam {
+    to { --angle: 360deg; }
 }
 
 .video-info-icon {
@@ -305,6 +459,7 @@ h1 {
 }
 
 .video-duration {
+    --lh: 1.2em;
     font-size: 19px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
@@ -347,7 +502,35 @@ h1 {
     font-size: 13.5px;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.18s var(--ease), transform 0.12s var(--ease), box-shadow 0.18s var(--ease);
+    transition: background 0.18s var(--ease), transform 0.2s var(--bounce), box-shadow 0.25s var(--ease);
+}
+
+/* A sheen sweeps across Start on hover; the record dot swells. */
+.primary-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.32) 50%, transparent 70%);
+    transform: translateX(-120%);
+    pointer-events: none;
+}
+
+.primary-btn:hover:not(:disabled)::after {
+    transform: translateX(120%);
+    transition: transform 0.85s var(--ease-out);
+}
+
+.primary-btn svg,
+.secondary-btn svg {
+    transition: transform 0.45s var(--bounce);
+}
+
+.primary-btn:hover:not(:disabled) svg {
+    transform: scale(1.2);
+}
+
+.secondary-btn:hover:not(:disabled) svg {
+    transform: rotate(90deg) scale(0.9);
 }
 
 .primary-btn {
@@ -358,6 +541,7 @@ h1 {
 
 .primary-btn:hover:not(:disabled) {
     background: var(--accent-hover);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset, 0 10px 22px -8px rgba(206, 44, 49, 0.8);
 }
 
 .secondary-btn {
@@ -371,7 +555,7 @@ h1 {
 
 .primary-btn:active:not(:disabled),
 .secondary-btn:active:not(:disabled) {
-    transform: scale(0.985);
+    transform: scale(0.97);
 }
 
 .primary-btn:disabled {
@@ -401,7 +585,60 @@ h1 {
     font-size: 12px;
     font-weight: 550;
     cursor: pointer;
-    transition: background 0.18s var(--ease), border-color 0.18s var(--ease), color 0.18s var(--ease), transform 0.12s var(--ease);
+    transition: background 0.18s var(--ease), border-color 0.18s var(--ease), color 0.18s var(--ease), transform 0.25s var(--bounce);
+}
+
+.control-btn svg {
+    overflow: visible;
+}
+
+.control-btn svg * {
+    transform-box: view-box;
+    transition: transform 0.45s var(--bounce);
+}
+
+/* Capture: the viewfinder closes in and the lens swells. */
+.ic-capture .corner,
+.ic-capture .lens {
+    transform-origin: 8px 8px;
+}
+
+.control-btn:hover:not(:disabled) .ic-capture .corner {
+    transform: scale(0.8);
+}
+
+.control-btn:hover:not(:disabled) .ic-capture .lens {
+    transform: scale(1.3);
+}
+
+.control-btn.snapped .ic-capture .lens {
+    animation: lens 0.6s var(--bounce);
+}
+
+@keyframes lens {
+    40% { transform: scale(0.4); }
+}
+
+/* Export: the arrow drops into the tray. */
+.control-btn:hover:not(:disabled) .ic-export .arrow {
+    animation: drop-in 0.7s var(--ease-out);
+}
+
+@keyframes drop-in {
+    0% { transform: none; }
+    35% { transform: translateY(3px); }
+    60% { transform: translateY(-1px); }
+    100% { transform: none; }
+}
+
+/* Clear: the lid lifts. */
+.ic-clear .lid {
+    transform-origin: 3px 4.5px;
+}
+
+.control-btn:hover:not(:disabled) .ic-clear .lid,
+.control-btn.armed .ic-clear .lid {
+    transform: rotate(-16deg) translateY(-1px);
 }
 
 .control-btn:hover:not(:disabled) {
@@ -426,12 +663,63 @@ h1 {
     color: var(--accent);
 }
 
+.control-btn.armed {
+    animation: shake 0.4s var(--ease-out);
+}
+
+/* The 3-second window to confirm Clear drains along the bottom edge. */
+.control-btn.armed::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--accent);
+    transform-origin: left;
+    animation: drain 3s linear forwards;
+}
+
+@keyframes shake {
+    25% { transform: translateX(-2px); }
+    50% { transform: translateX(2px); }
+    75% { transform: translateX(-1px); }
+}
+
+@keyframes drain {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+}
+
+/* Camera-shutter flash after a snapshot. */
+.shutter {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    background: #fff;
+    pointer-events: none;
+    animation: shutter 0.45s var(--ease-out) forwards;
+}
+
+@keyframes shutter {
+    from { opacity: 0.5; }
+    to { opacity: 0; }
+}
+
 /* Footer */
 .footer-info {
     margin: 2px -16px 0;
     padding: 10px 16px;
     border-top: 1px solid var(--border);
     background: var(--surface);
+}
+
+.ic-lock .shackle {
+    transition: transform 0.45s var(--bounce);
+}
+
+.footer-info:hover .ic-lock .shackle {
+    transform: translateY(-1.5px);
 }
 
 .info-text {
@@ -464,9 +752,31 @@ h1 {
     font-size: 12.5px;
     font-weight: 500;
     box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.45);
-    animation: toast 0.28s var(--ease) both;
-    transition: opacity 0.3s ease;
+    overflow: hidden;
+    /* backwards, not both: a held end state would block the .leaving fade-out. */
+    animation: toast 0.5s var(--bounce) backwards;
+    transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out), filter 0.3s var(--ease-out);
     z-index: 10;
+}
+
+/* Time left before the toast goes away. */
+.notification::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: currentColor;
+    opacity: 0.25;
+    transform-origin: left;
+    animation: drain 3s linear forwards;
+}
+
+.notification.leaving {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+    filter: blur(3px);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -490,8 +800,16 @@ h1 {
 }
 
 @keyframes toast {
-    from { opacity: 0; transform: translateY(8px) scale(0.98); }
-    to { opacity: 1; transform: none; }
+    from { opacity: 0; transform: translateY(14px) scale(0.94); filter: blur(4px); }
+    to { opacity: 1; transform: none; filter: none; }
+}
+
+.notification::before {
+    animation: pop 0.5s var(--bounce) 0.15s both;
+}
+
+@keyframes pop {
+    from { transform: scale(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {

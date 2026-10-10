@@ -229,8 +229,9 @@ offscreen.js
 
 #### `generateVideoTimelineHTML(data, videoBlob, videoFileName)`
 - Creates HTML with video player
-- Embeds small videos, references large ones
+- References the video as `video.webm` next to the HTML (never embedded)
 - Synchronizes logs with video playback
+- Page script is `replayApp` + `exportKit`, inlined with `toString()`; avoid backticks, `${` and `</script` inside them
 
 ### offscreen.js
 

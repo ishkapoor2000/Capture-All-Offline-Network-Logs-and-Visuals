@@ -185,12 +185,18 @@ Notes:
 
 ## Timeline Viewer (HTML) – Key Features
 
-- Compact event pills (30px height) with ellipsis and tooltip for long labels
-- Horizontal scroll for wide/long sessions
-- Playback cursor track
-- Live Current Event panel that updates while playing
-- Click-to-expand details for Network/Interaction/Snapshot
-- Responsive layout
+**Session replay** (Video + logs mode)
+- Video with click markers that name the clicked element, a scrubber marked with clicks, snapshots and page changes, and a hover tooltip
+- Network tab: filter by type or errors, hide CORS preflight, search; open a request for query parameters, headers, bodies, Copy URL and Copy as cURL
+- Interactions tab: rows read as actions; scroll bursts and typing in one field collapse into one row; page changes get a divider; selectors and XPath are copyable
+- Snapshots tab: open a snapshot to outline every visible link, button and field on the video, search them, and copy selectors or the whole snapshot as JSON
+- Follow keeps the current row in view while playing; keys: Space, ←/→, `/` filter, `F` follow, Enter opens a row, Esc hides outlines
+
+**Logs timeline** (Logs only mode)
+- Event pills per track, a playback cursor and a live "Now" panel
+- Click a pill for the same detail views as the replay (cURL, headers, snapshot map and element list)
+
+Both are single offline files, work in light and dark, and respect "reduce motion".
 
 ## How It Works (Under the Hood)
 

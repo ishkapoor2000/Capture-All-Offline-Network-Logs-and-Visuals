@@ -24,6 +24,7 @@
         </header>
 
         <div class="mode-tabs" role="group" aria-label="Recording mode">
+            <span class="mode-thumb" aria-hidden="true"></span>
             <button class="mode-tab" id="logModeTab" data-mode="logs" aria-pressed="false">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
                     <path d="M3 4.5h10M3 8h10M3 11.5h6"/>
@@ -66,13 +67,13 @@
         </div>
 
         <div class="main-controls">
-            <button id="startBtn" class="primary-btn">
+            <button id="startBtn" class="primary-btn" data-ripple>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                     <circle cx="8" cy="8" r="6"/>
                 </svg>
                 Start recording
             </button>
-            <button id="stopBtn" class="secondary-btn" disabled>
+            <button id="stopBtn" class="secondary-btn" data-ripple disabled>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                     <rect x="3" y="3" width="10" height="10" rx="2"/>
                 </svg>
@@ -81,22 +82,27 @@
         </div>
 
         <div class="secondary-controls">
-            <button id="captureBtn" class="control-btn" title="Snapshot the elements on this page">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
-                    <path d="M2 5V3.5A1.5 1.5 0 013.5 2H5M11 2h1.5A1.5 1.5 0 0114 3.5V5M14 11v1.5a1.5 1.5 0 01-1.5 1.5H11M5 14H3.5A1.5 1.5 0 012 12.5V11"/>
-                    <circle cx="8" cy="8" r="2"/>
+            <button id="captureBtn" class="control-btn" data-ripple title="Snapshot the elements on this page">
+                <svg class="ic-capture" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+                    <path class="corner" d="M2 5V3.5A1.5 1.5 0 013.5 2H5"/>
+                    <path class="corner" d="M11 2h1.5A1.5 1.5 0 0114 3.5V5"/>
+                    <path class="corner" d="M14 11v1.5a1.5 1.5 0 01-1.5 1.5H11"/>
+                    <path class="corner" d="M5 14H3.5A1.5 1.5 0 012 12.5V11"/>
+                    <circle class="lens" cx="8" cy="8" r="2"/>
                 </svg>
                 <span>Capture</span>
             </button>
-            <button id="exportBtn" class="control-btn accent" title="Download everything as one .zip">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M8 2.5v7.5M4.75 7L8 10.25 11.25 7M3 13.5h10"/>
+            <button id="exportBtn" class="control-btn accent" data-ripple title="Download everything as one .zip">
+                <svg class="ic-export" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path class="arrow" d="M8 2.5v7.5M4.75 7L8 10.25 11.25 7"/>
+                    <path d="M3 13.5h10"/>
                 </svg>
                 <span>Export .zip</span>
             </button>
-            <button id="clearBtn" class="control-btn danger" title="Delete all captured data">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M2.5 4.5h11M6.5 4.5V3a1 1 0 011-1h1a1 1 0 011 1v1.5M4 4.5l.6 8.1a1.5 1.5 0 001.5 1.4h3.8a1.5 1.5 0 001.5-1.4l.6-8.1"/>
+            <button id="clearBtn" class="control-btn danger" data-ripple title="Delete all captured data">
+                <svg class="ic-clear" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path class="lid" d="M2.5 4.5h11M6.5 4.5V3a1 1 0 011-1h1a1 1 0 011 1v1.5"/>
+                    <path d="M4 4.5l.6 8.1a1.5 1.5 0 001.5 1.4h3.8a1.5 1.5 0 001.5-1.4l.6-8.1"/>
                 </svg>
                 <span>Clear</span>
             </button>
@@ -104,9 +110,9 @@
 
         <footer class="footer-info">
             <div class="info-text">
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg class="ic-lock" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <rect x="3" y="7" width="10" height="7" rx="1.5"/>
-                    <path d="M5.5 7V5a2.5 2.5 0 015 0v2"/>
+                    <path class="shackle" d="M5.5 7V5a2.5 2.5 0 015 0v2"/>
                 </svg>
                 <span>Everything stays on this device</span>
                 <span id="extVersion" class="ext-version"></span>

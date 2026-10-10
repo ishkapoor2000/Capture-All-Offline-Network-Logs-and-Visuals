@@ -1170,7 +1170,28 @@ function generateImprovedTimelineHTML(data) {
             --warn: #a35200;
             --warn-soft: rgba(241, 161, 13, 0.14);
             --shadow: 0 1px 2px rgba(24, 24, 27, 0.05), 0 12px 32px -16px rgba(24, 24, 27, 0.16);
+            --panel-3: #e9e9ec;
+            --line-3: #a1a1aa;
+            --dots: rgba(24, 24, 27, 0.07);
+            --sunken: rgba(24, 24, 27, 0.025);
+            --hover: rgba(24, 24, 27, 0.03);
+            --bad: #ce2c31;
+            --ok: #18794e;
+            --k-link: #0d74ce;
+            --k-button: #ce2c31;
+            --k-field: #18794e;
+            --k-select: #c27c00;
+            --k-toggle: #0b8a83;
+            --k-other: #71717a;
+            --j-key: #0d74ce;
+            --j-str: #18794e;
+            --j-num: #a35200;
+            --j-lit: #ce2c31;
             --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+            --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+            --spring: linear(0, 0.0198 1%, 0.0793 2.1%, 0.3115 5.2%, 0.5823 9.3%, 0.7792 13.5%, 0.8979 17.6%, 0.9618 21.8%, 0.9937 26.4%, 1.0082 31.7%, 1.0118 37.9%, 1.0068 50%, 0.9999 75%, 1);
+            --bounce: linear(0, 0.0236 1.1%, 0.0951 2.3%, 0.3793 5.8%, 0.6843 10.2%, 0.9021 14.6%, 1.0236 19.3%, 1.0783 23.6%, 1.0915 27.5%, 1.0804 31.9%, 1.0265 41.5%, 0.9978 51.6%, 0.9933 62%, 1.0004 85%, 1);
+            interpolate-size: allow-keywords;
             --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
         }
 
@@ -1193,7 +1214,59 @@ function generateImprovedTimelineHTML(data) {
                 --warn: #f1a10d;
                 --warn-soft: rgba(241, 161, 13, 0.12);
                 --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px -16px rgba(0, 0, 0, 0.7);
+                --panel-3: #222227;
+                --line-3: #4a4a52;
+                --dots: rgba(255, 255, 255, 0.05);
+                --sunken: rgba(0, 0, 0, 0.16);
+                --hover: rgba(255, 255, 255, 0.025);
+                --bad: #ff8589;
+                --k-link: #70b8ff;
+                --k-button: #ff8589;
+                --k-field: #3dd68c;
+                --k-select: #f1a10d;
+                --k-toggle: #4cc9c0;
+                --k-other: #a1a1aa;
+                --j-key: #9cc9ff;
+                --j-str: #8fe3b6;
+                --j-num: #ffc86b;
+                --j-lit: #ff9da0;
             }
+        }
+
+        ${EXPORT_DETAILS_CSS}
+
+        .details-panel .row-details {
+            opacity: 1;
+        }
+
+        .detail-main h4 {
+            margin-bottom: 8px;
+        }
+
+        .detail-url {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+            font-family: var(--mono);
+            font-size: 12px;
+            overflow-wrap: anywhere;
+        }
+
+        .detail-url span:last-child {
+            min-width: 0;
+        }
+
+        .swap {
+            animation: swap 0.4s var(--ease-out);
+        }
+
+        @keyframes swap {
+            from { opacity: 0; transform: translateY(4px); filter: blur(4px); }
+        }
+
+        .enter {
+            animation: rise 0.5s var(--ease-out) both;
+            animation-delay: calc(var(--i, 0) * 22ms);
         }
 
         * {
@@ -1287,8 +1360,8 @@ function generateImprovedTimelineHTML(data) {
         .container > :nth-child(3) { animation-delay: 120ms; }
 
         @keyframes rise {
-            from { opacity: 0; transform: translateY(6px); }
-            to { opacity: 1; transform: none; }
+            from { opacity: 0; transform: translateY(6px); filter: blur(4px); }
+            to { opacity: 1; transform: none; filter: none; }
         }
 
         .summary-grid {
@@ -1302,7 +1375,31 @@ function generateImprovedTimelineHTML(data) {
         }
 
         .summary-card {
+            position: relative;
             padding: 16px 20px;
+        }
+
+        .summary-card,
+        .event-pill {
+            isolation: isolate;
+        }
+
+        .summary-card::before,
+        .event-pill::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            border-radius: inherit;
+            background: radial-gradient(220px circle at var(--mx, -300px) var(--my, -300px), var(--accent-soft), transparent 70%);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s var(--ease);
+        }
+
+        .summary-card:hover::before,
+        .event-pill:hover::before {
+            opacity: 1;
         }
 
         .summary-card + .summary-card {
@@ -1363,7 +1460,7 @@ function generateImprovedTimelineHTML(data) {
             font-size: 13px;
             font-weight: 550;
             cursor: pointer;
-            transition: background 0.15s var(--ease), border-color 0.15s var(--ease), transform 0.12s var(--ease);
+            transition: background 0.15s var(--ease), border-color 0.15s var(--ease), transform 0.25s var(--bounce);
         }
 
         .playback-btn svg {
@@ -1377,7 +1474,19 @@ function generateImprovedTimelineHTML(data) {
         }
 
         .playback-btn:active:not(:disabled) {
-            transform: scale(0.97);
+            transform: scale(0.95);
+        }
+
+        .playback-btn svg {
+            transition: transform 0.45s var(--bounce);
+        }
+
+        .playback-btn:hover:not(:disabled) svg {
+            transform: scale(1.15);
+        }
+
+        #resetBtn:hover svg {
+            transform: rotate(-200deg);
         }
 
         .playback-btn.primary {
@@ -1520,6 +1629,20 @@ function generateImprovedTimelineHTML(data) {
             transition: left 0.1s linear;
         }
 
+        body.playing .cursor-marker::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: var(--accent);
+            animation: ping 1.4s var(--ease-out) infinite;
+        }
+
+        @keyframes ping {
+            from { transform: scale(1); opacity: 0.6; }
+            to { transform: scale(2.8); opacity: 0; }
+        }
+
         .timeline-track {
             display: flex;
             flex-direction: column;
@@ -1559,7 +1682,7 @@ function generateImprovedTimelineHTML(data) {
             text-align: left;
             font-size: 13px;
             cursor: pointer;
-            transition: background 0.15s var(--ease);
+            transition: background 0.15s var(--ease), box-shadow 0.3s var(--spring);
         }
 
         .event-pill:hover {
@@ -1630,8 +1753,17 @@ function generateImprovedTimelineHTML(data) {
 
         .details-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
             gap: 16px;
+            align-items: start;
+        }
+
+        .details-grid > * {
+            animation: rise 0.45s var(--ease-out) both;
+        }
+
+        .details-grid > :nth-child(2) {
+            animation-delay: 70ms;
         }
 
         .detail-section {
@@ -1691,6 +1823,7 @@ function generateImprovedTimelineHTML(data) {
         .status-error { background: var(--accent-soft); color: var(--accent); }
 
         @media (max-width: 720px) {
+            .details-grid { grid-template-columns: minmax(0, 1fr); }
             .summary-grid { grid-template-columns: repeat(2, 1fr); }
             .summary-card:nth-child(3) { border-left: none; }
             .summary-card:nth-child(n + 3) { border-top: 1px solid var(--line); }
@@ -1722,15 +1855,15 @@ function generateImprovedTimelineHTML(data) {
     <main class="container">
         <section class="summary-grid" aria-label="Summary">
             <div class="summary-card">
-                <h3>${data.summary.totalNetworkRequests}</h3>
+                <h3 data-tick>${data.summary.totalNetworkRequests}</h3>
                 <p>Network requests</p>
             </div>
             <div class="summary-card">
-                <h3>${data.summary.totalInteractions}</h3>
+                <h3 data-tick>${data.summary.totalInteractions}</h3>
                 <p>Interactions</p>
             </div>
             <div class="summary-card">
-                <h3>${data.summary.totalElementSnapshots}</h3>
+                <h3 data-tick>${data.summary.totalElementSnapshots}</h3>
                 <p>Element snapshots</p>
             </div>
             <div class="summary-card">
@@ -1750,15 +1883,15 @@ function generateImprovedTimelineHTML(data) {
                         <option value="5">5×</option>
                         <option value="10">10×</option>
                     </select>
-                    <button class="playback-btn primary" id="playBtn">
+                    <button class="playback-btn primary" id="playBtn" data-ripple>
                         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 001.5.86l12.5-7.5a1 1 0 000-1.72L8.5 3.64A1 1 0 007 4.5z"/></svg>
                         Play
                     </button>
-                    <button class="playback-btn" id="pauseBtn" disabled>
+                    <button class="playback-btn" id="pauseBtn" data-ripple disabled>
                         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5.5" y="4" width="4.5" height="16" rx="1.2"/><rect x="14" y="4" width="4.5" height="16" rx="1.2"/></svg>
                         Pause
                     </button>
-                    <button class="playback-btn" id="resetBtn">
+                    <button class="playback-btn" id="resetBtn" data-ripple>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 103-6.7L3 8M3 3v5h5"/></svg>
                         Reset
                     </button>
@@ -1879,6 +2012,7 @@ function generateImprovedTimelineHTML(data) {
         function startPlayback() {
             if (isPlaying) return;
             isPlaying = true;
+            document.body.classList.add('playing');
             document.getElementById('playBtn').disabled = true;
             document.getElementById('pauseBtn').disabled = false;
             lastFrameTime = performance.now();
@@ -1887,6 +2021,7 @@ function generateImprovedTimelineHTML(data) {
 
         function pausePlayback() {
             isPlaying = false;
+            document.body.classList.remove('playing');
             document.getElementById('playBtn').disabled = false;
             document.getElementById('pauseBtn').disabled = true;
             if (animationFrame) {
@@ -1990,137 +2125,43 @@ function generateImprovedTimelineHTML(data) {
             }
             
             summary.innerHTML = summaryText;
+            summary.classList.remove('swap');
+            void summary.offsetWidth;
+            summary.classList.add('swap');
         }
 
         function showEventDetails(event) {
             const panel = document.getElementById('detailsPanel');
+            panel.classList.remove('active');
+            void panel.offsetWidth;
             panel.classList.add('active');
-            
+
             let detailsHTML = '<h3>Event details</h3><div class="details-grid">';
-            
-            // Common details
             detailsHTML += '<div class="detail-section">';
             detailsHTML += '<h4>Event</h4>';
-            detailsHTML += \`<div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">\${esc(event.type)}</div></div>\`;
-            detailsHTML += \`<div class="detail-item"><div class="detail-label">Timestamp</div><div class="detail-value">\${new Date(event.timestamp).toLocaleString()}</div></div>\`;
-            detailsHTML += \`<div class="detail-item"><div class="detail-label">Relative time</div><div class="detail-value">\${formatTimestamp(event.timestamp - startTime)}</div></div>\`;
-            detailsHTML += '</div>';
-            
-            if (event.type === 'network') {
-                detailsHTML += generateNetworkDetails(event.data);
-            } else if (event.type === 'interaction') {
-                detailsHTML += generateInteractionDetails(event.data);
-            } else if (event.type === 'snapshot') {
-                detailsHTML += generateSnapshotDetails(event.data);
-            }
-            
-            detailsHTML += '</div>';
+            detailsHTML += '<div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">' + esc(event.type) + '</div></div>';
+            detailsHTML += '<div class="detail-item"><div class="detail-label">Timestamp</div><div class="detail-value">' + new Date(event.timestamp).toLocaleString() + '</div></div>';
+            detailsHTML += '<div class="detail-item"><div class="detail-label">Relative time</div><div class="detail-value">' + formatTimestamp(event.timestamp - startTime) + '</div></div>';
+            detailsHTML += '</div></div>';
             panel.innerHTML = detailsHTML;
-            
-            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
 
-        function generateNetworkDetails(data) {
-            let html = '<div class="detail-section">';
-            html += '<h4>Request</h4>';
-            html += \`<div class="detail-item"><div class="detail-label">URL</div><div class="detail-value">\${esc(data.url)}</div></div>\`;
-            html += \`<div class="detail-item"><div class="detail-label">Method</div><div class="detail-value">\${esc(data.method)}</div></div>\`;
-            
-            if (data.headers) {
-                html += \`<div class="detail-item"><div class="detail-label">Request headers</div><div class="detail-value"><pre>\${esc(JSON.stringify(data.headers, null, 2))}</pre></div></div>\`;
+            // The same structured views as the session replay: params, headers, bodies, selectors, element maps.
+            const main = kit.h('div', { class: 'detail-section detail-main' });
+            const log = event.data;
+            if (event.type === 'network') {
+                main.append(
+                    kit.h('h4', { text: 'Request' }),
+                    kit.h('div', { class: 'detail-url' }, [kit.h('span', { class: 'tag network', text: String(log.method || 'GET') }), kit.h('span', { text: String(log.url || '') })]),
+                    kit.networkDetails(models.requestModel(log)));
+            } else if (event.type === 'interaction') {
+                main.append(
+                    kit.h('h4', { text: 'Interaction: ' + String(log.type || 'unknown') }),
+                    kit.interactionDetails(models.interactionModel({ type: String(log.type || 'unknown'), count: 1, url: String(log.url || ''), start: log.timestamp, end: log.timestamp, from: log.scrollPosition || null, to: log.scrollPosition || null, log: log, last: log })));
+            } else if (event.type === 'snapshot') {
+                main.append(kit.h('h4', { text: 'Snapshot' }), kit.snapshotDetails(models.snapshotModel(log)).node);
             }
-            
-            if (data.postData) {
-                html += \`<div class="detail-item"><div class="detail-label">Request body</div><div class="detail-value"><pre>\${esc(data.postData)}</pre></div></div>\`;
-            }
-            html += '</div>';
-            
-            if (data.response) {
-                html += '<div class="detail-section">';
-                html += '<h4>Response</h4>';
-                
-                const statusClass = data.response.status >= 200 && data.response.status < 300 ? 'status-success' : 'status-error';
-                html += \`<div class="detail-item"><div class="detail-label">Status</div><div class="detail-value"><span class="status-badge \${statusClass}">\${esc(data.response.status)} \${esc(data.response.statusText || '')}</span></div></div>\`;
-                
-                if (data.response.headers) {
-                    html += \`<div class="detail-item"><div class="detail-label">Response headers</div><div class="detail-value"><pre>\${esc(JSON.stringify(data.response.headers, null, 2))}</pre></div></div>\`;
-                }
-                
-                if (data.response.body) {
-                    let bodyDisplay = data.response.body;
-                    if (typeof bodyDisplay === 'object') {
-                        bodyDisplay = JSON.stringify(bodyDisplay, null, 2);
-                    }
-                    html += \`<div class="detail-item"><div class="detail-label">Response body</div><div class="detail-value response-body"><pre>\${esc(bodyDisplay)}</pre></div></div>\`;
-                }
-                
-                if (data.loadingFinished) {
-                    html += \`<div class="detail-item"><div class="detail-label">Size</div><div class="detail-value">\${formatBytes(data.loadingFinished.encodedDataLength)}</div></div>\`;
-                }
-                
-                html += '</div>';
-            }
-            
-            if (data.loadingFailed) {
-                html += '<div class="detail-section">';
-                html += '<h4>Error</h4>';
-                html += \`<div class="detail-item"><div class="detail-label">Error</div><div class="detail-value"><span class="status-badge status-error">\${esc(data.loadingFailed.errorText)}</span></div></div>\`;
-                html += '</div>';
-            }
-            
-            return html;
-        }
-
-        function generateInteractionDetails(data) {
-            let html = '<div class="detail-section">';
-            html += '<h4>Interaction</h4>';
-            html += \`<div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">\${esc(data.type)}</div></div>\`;
-            
-            // Handle coordinates object
-            if (data.coordinates && data.coordinates.clientX !== undefined) {
-                html += \`<div class="detail-item"><div class="detail-label">Client coordinates</div><div class="detail-value">(\${data.coordinates.clientX}, \${data.coordinates.clientY})</div></div>\`;
-            }
-            
-            if (data.coordinates && data.coordinates.pageX !== undefined) {
-                html += \`<div class="detail-item"><div class="detail-label">Page coordinates</div><div class="detail-value">(\${data.coordinates.pageX}, \${data.coordinates.pageY})</div></div>\`;
-            }
-            
-            // Handle scrollPosition object
-            if (data.scrollPosition) {
-                html += \`<div class="detail-item"><div class="detail-label">Scroll position</div><div class="detail-value">(\${data.scrollPosition.x}, \${data.scrollPosition.y})</div></div>\`;
-            }
-            
-            if (data.element) {
-                html += \`<div class="detail-item"><div class="detail-label">Element</div><div class="detail-value"><pre>\${esc(JSON.stringify(data.element, null, 2))}</pre></div></div>\`;
-            }
-            
-            html += '</div>';
-            return html;
-        }
-
-        function generateSnapshotDetails(data) {
-            let html = '<div class="detail-section">';
-            html += '<h4>Snapshot</h4>';
-            html += \`<div class="detail-item"><div class="detail-label">URL</div><div class="detail-value">\${esc(data.url)}</div></div>\`;
-            html += \`<div class="detail-item"><div class="detail-label">Element count</div><div class="detail-value">\${data.elements.length}</div></div>\`;
-            
-            if (data.viewport) {
-                html += \`<div class="detail-item"><div class="detail-label">Viewport</div><div class="detail-value">\${data.viewport.width}x\${data.viewport.height}</div></div>\`;
-            }
-            
-            if (data.elements && data.elements.length > 0) {
-                html += '<div class="detail-item"><div class="detail-label">Elements</div><div class="detail-value"><pre>';
-                data.elements.slice(0, 20).forEach((el, i) => {
-                    html += esc(\`\${i + 1}. \${el.tagName}\${el.id ? ' #' + el.id : ''}\${el.className ? ' .' + el.className : ''}\`) + '\\n';
-                });
-                if (data.elements.length > 20) {
-                    html += \`... and \${data.elements.length - 20} more\\n\`;
-                }
-                html += '</pre></div></div>';
-            }
-            
-            html += '</div>';
-            return html;
+            panel.querySelector('.details-grid').append(main);
+            panel.scrollIntoView({ behavior: kit.reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
         }
 
         function esc(value) {
@@ -2141,14 +2182,6 @@ function generateImprovedTimelineHTML(data) {
             }
         }
 
-        function formatBytes(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
-        }
-
         function truncateUrl(url) {
             try {
                 const urlObj = new URL(url);
@@ -2159,7 +2192,20 @@ function generateImprovedTimelineHTML(data) {
             }
         }
 
+        const kit = (${exportKit})();
+        const models = (function () {
+            const BODY_PREVIEW_CHARS = ${BODY_PREVIEW_CHARS};
+            const POST_DATA_CHARS = ${POST_DATA_CHARS};
+            const ROLE_KINDS = ${JSON.stringify(ROLE_KINDS)};
+            ${[requestKind, clip, formatMs, formatBytes, requestModel, isFormControl, controlLabel, elementKind, elementLabel, snapshotModel, interactionModel].join('\n')}
+            return { requestModel, snapshotModel, interactionModel };
+        })();
+
         init();
+        document.querySelectorAll('[data-tick]').forEach((el, i) => kit.ticker(el, 200 + i * 90));
+        kit.stagger(Array.from(document.querySelectorAll('.event-pill')), 18);
+        kit.spotlight(document.querySelector('.timeline-wrapper'), '.event-pill');
+        kit.spotlight(document.querySelector('.summary-grid'), '.summary-card');
     </script>
 </body>
 </html>`;
@@ -2176,7 +2222,7 @@ function generateImprovedTimelineHTML(data) {
     function generateTimelineTracks(data, startTime, endTime) {
         // data-index is the position in that type's own list; the page script maps it back to the event.
         const track = (label, items) => `<div class="timeline-track"><div class="track-label">${label}</div><div class="track-list">${items}</div></div>`;
-        const pill = (type, index, tag, name, meta) => `<button class="event-pill ${type}" data-type="${type}" data-index="${index}">
+        const pill = (type, index, tag, name, meta) => `<button class="event-pill ${type}" data-type="${type}" data-index="${index}" data-ripple>
                     <span class="pill-main"><span class="tag ${type}">${tag}</span><span class="pill-name">${name}</span></span>
                     <span class="pill-meta">${meta}</span>
                 </button>`;
@@ -2193,7 +2239,7 @@ function generateImprovedTimelineHTML(data) {
 
         if (data.interactionLogs && data.interactionLogs.length > 0) {
             html += track('User interactions', data.interactionLogs.map((log, index) =>
-                pill('interaction', index, escapeHtml(log.type || 'event'), escapeHtml(log.element && log.element.text ? log.element.text.replace(/\s+/g, ' ').trim().slice(0, 80) : (log.element ? String(log.element.tagName || '').toLowerCase() : '')), at(log.timestamp))
+                pill('interaction', index, escapeHtml(log.type || 'event'), escapeHtml(elementLabel(log.element) || (log.element ? String(log.element.tagName || '').toLowerCase() : '')), at(log.timestamp))
             ).join(''));
         }
 
@@ -2207,14 +2253,1937 @@ function generateImprovedTimelineHTML(data) {
     }
 }
 
+// ---- Export models: shrink captured logs into what the exported pages draw. ----
+
+const KIND_LABELS = { link: 'Links', button: 'Buttons', field: 'Fields', select: 'Selects', toggle: 'Toggles', other: 'Clickable' };
+const BODY_PREVIEW_CHARS = 12000;
+const POST_DATA_CHARS = 64000;
+
+const ROLE_KINDS = { button: 'button', link: 'link', checkbox: 'toggle', radio: 'toggle', switch: 'toggle', combobox: 'select', listbox: 'select', textbox: 'field', searchbox: 'field' };
+
+function elementKind(el) {
+    const tag = String((el && el.tagName) || '').toLowerCase();
+    const attrs = (el && el.attributes) || {};
+    const type = String(attrs.type || '').toLowerCase();
+    const role = String(attrs.role || '').toLowerCase();
+    if (ROLE_KINDS[role]) return ROLE_KINDS[role];
+    if (tag === 'a') return 'link';
+    if (tag === 'select') return 'select';
+    if (tag === 'textarea') return 'field';
+    if (tag === 'input') {
+        if (type === 'checkbox' || type === 'radio') return 'toggle';
+        return ['submit', 'button', 'reset', 'image'].includes(type) ? 'button' : 'field';
+    }
+    return tag === 'button' ? 'button' : 'other';
+}
+
+function elementLabel(el) {
+    if (!el) return '';
+    const attrs = el.attributes || {};
+    if (isFormControl(el) && controlLabel(el)) return controlLabel(el);
+    const text = String(el.text || '').replace(/\s+/g, ' ').trim();
+    const label = text || attrs['aria-label'] || attrs.placeholder || attrs.title || attrs.alt || attrs.name || (el.id ? '#' + el.id : '');
+    return String(label).slice(0, 80);
+}
+
+// "button “Edit booking”", used on click markers and the scrubber tooltip.
+function targetLabel(el) {
+    if (!el) return '';
+    const tag = String(el.tagName || '').toLowerCase();
+    const label = elementLabel(el).slice(0, 40);
+    return [tag, label && `“${label}”`].filter(Boolean).join(' ');
+}
+
+function pageKey(url) {
+    return String(url || '').split('#')[0];
+}
+
+function pathOf(url) {
+    try {
+        const u = new URL(url);
+        return u.host + (u.pathname === '/' ? '' : u.pathname);
+    } catch (e) {
+        return String(url || '');
+    }
+}
+
+function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes < 0) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(bytes < 10240 ? 1 : 0) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+function formatMs(ms) {
+    if (!Number.isFinite(ms)) return '';
+    return ms < 1000 ? Math.round(ms) + ' ms' : (ms / 1000).toFixed(ms < 10000 ? 2 : 1) + ' s';
+}
+
+function requestKind(log) {
+    const mime = String((log.response && log.response.mimeType) || '').toLowerCase();
+    if (mime.includes('html')) return 'doc';
+    if (/javascript|css|font|wasm/.test(mime)) return 'code';
+    if (/^(image|video|audio)\//.test(mime)) return 'media';
+    return 'api';
+}
+
+function clip(value, max) {
+    if (value == null) return { text: '', cut: false };
+    const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+    return text.length > max ? { text: text.slice(0, max), cut: true } : { text, cut: false };
+}
+
+function requestModel(log) {
+    const res = log.response || null;
+    const failed = log.loadingFailed || null;
+    const end = (log.loadingFinished || failed || res || {}).timestamp;
+    const ms = Number.isFinite(end) ? Math.max(0, end - log.timestamp) : null;
+    const size = log.loadingFinished && Number.isFinite(log.loadingFinished.encodedDataLength)
+        ? log.loadingFinished.encodedDataLength
+        : (res && Number.isFinite(res.bodySize) ? res.bodySize : null);
+    const status = res ? res.status : (failed ? (failed.canceled ? 'canceled' : 'failed') : 'pending');
+    const kind = requestKind(log);
+    // Script and style bodies are rarely what someone debugging a session wants; logs.json keeps them.
+    const body = res && res.body != null && kind !== 'code' ? clip(res.body, BODY_PREVIEW_CHARS) : { text: '', cut: false };
+    const post = clip(log.postData, POST_DATA_CHARS);
+    return {
+        method: String(log.method || 'GET'),
+        url: String(log.url || ''),
+        status,
+        statusText: res ? String(res.statusText || '') : '',
+        mime: res ? String(res.mimeType || '') : '',
+        kind,
+        // Requests the browser canceled after a 2xx (navigation, pings) are not failures.
+        err: !!((res && res.status >= 400) || (failed && (!res || !failed.canceled))),
+        ms,
+        msText: formatMs(ms),
+        sizeText: formatBytes(size),
+        error: failed ? String(failed.errorText || (failed.canceled ? 'Canceled' : 'Failed')) : '',
+        reqHeaders: log.headers || null,
+        resHeaders: res ? res.headers || null : null,
+        post: post.text,
+        postCut: post.cut,
+        body: body.text,
+        bodyCut: body.cut,
+        bodyOmitted: !!(res && res.body != null && kind === 'code'),
+    };
+}
+
+// Consecutive scroll events in one direction (throttled to ~10/s while capturing) read as one "Scrolled" row.
+function interactionRows(logs) {
+    const rows = [];
+    (logs || []).forEach((log, index) => {
+        const prev = rows[rows.length - 1];
+        const step = prev && prev.to && log.scrollPosition ? Math.sign(log.scrollPosition.y - prev.to.y) : 0;
+        const turned = step !== 0 && prev.dir !== 0 && step !== prev.dir;
+        if (log.type === 'scroll' && prev && prev.type === 'scroll' && !turned && log.timestamp - prev.end < 2000 && pageKey(log.url) === pageKey(prev.url)) {
+            if (step) prev.dir = step;
+            prev.end = log.timestamp;
+            prev.count++;
+            if (log.scrollPosition) prev.to = log.scrollPosition;
+            prev.last = log;
+            return;
+        }
+        // Keystrokes into the same field read as one "Typed" row.
+        if (log.type === 'input' && prev && prev.type === 'input' && log.timestamp - prev.end < 3000 && fieldKey(log) === fieldKey(prev.last)) {
+            prev.end = log.timestamp;
+            prev.count++;
+            prev.last = log;
+            return;
+        }
+        rows.push({
+            type: String(log.type || 'unknown'),
+            start: log.timestamp,
+            end: log.timestamp,
+            count: 1,
+            url: String(log.url || ''),
+            from: (turned && prev.to) || log.scrollPosition || null,
+            to: log.scrollPosition || null,
+            dir: turned ? step : 0,
+            log,
+            last: log,
+        });
+    });
+    return rows;
+}
+
+function fieldKey(log) {
+    const el = log.element || {};
+    return pageKey(log.url) + ' ' + (el.selector || el.xpath || '');
+}
+
+// Form controls are named by placeholder/name; their textContent is option lists or empty.
+function isFormControl(el) {
+    return !!el && /^(input|select|textarea)$/i.test(String(el.tagName || ''));
+}
+
+function controlLabel(el) {
+    const attrs = el.attributes || {};
+    return String(attrs['aria-label'] || attrs.placeholder || attrs.name || attrs.title || (el.id ? '#' + el.id : '')).slice(0, 60);
+}
+
+function interactionKind(type) {
+    if (type === 'click' || type === 'scroll' || type === 'drag') return type;
+    return type === 'input' || type === 'change' ? 'input' : 'other';
+}
+
+function interactionModel(row) {
+    const log = row.log;
+    const el = log.element || null;
+    return {
+        type: row.type,
+        count: row.count,
+        url: row.url,
+        span: row.end - row.start,
+        from: row.from,
+        to: row.to,
+        tag: el ? String(el.tagName || '').toLowerCase() : '',
+        id: el && el.id ? String(el.id) : '',
+        cls: el && typeof el.className === 'string' ? el.className : '',
+        text: el ? String(el.text || '').replace(/\s+/g, ' ').trim().slice(0, 300) : '',
+        selector: el ? String(el.selector || '') : '',
+        xpath: el ? String(el.xpath || '') : '',
+        href: el && el.attributes ? String(el.attributes.href || '') : '',
+        coords: log.coordinates || log.start || null,
+        end: log.end || null,
+        viewport: log.viewport ? { w: log.viewport.width, h: log.viewport.height } : null,
+        valueLength: row.last.valueLength,
+        inputType: row.last.inputType || '',
+        value: log.value,
+        distance: log.distance,
+        duration: log.duration,
+    };
+}
+
+function snapshotModel(snapshot) {
+    const vp = snapshot.viewport || {};
+    const vw = vp.width || 1;
+    const vh = vp.height || 1;
+    const counts = {};
+    let inView = 0;
+    const els = (snapshot.elements || []).map(el => {
+        const pos = el.position || {};
+        const x = Number(pos.left) || 0;
+        const y = Number(pos.top) || 0;
+        const w = Number(pos.width) || 0;
+        const h = Number(pos.height) || 0;
+        const v = w > 0 && h > 0 && x < vw && y < vh && x + w > 0 && y + h > 0;
+        const k = elementKind(el);
+        counts[k] = (counts[k] || 0) + 1;
+        if (v) inView++;
+        return {
+            k,
+            tag: String(el.tagName || '').toLowerCase(),
+            l: elementLabel(el),
+            s: String(el.selector || ''),
+            xp: String(el.xpath || ''),
+            href: el.attributes && el.attributes.href ? String(el.attributes.href) : '',
+            x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h),
+            v,
+        };
+    });
+    return { url: String(snapshot.url || ''), vw, vh, els, counts, inView };
+}
+
+// For <script> embedding: no "</script>" or "<!--" can appear inside.
+function embedJson(value) {
+    return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
+// Styles for the details views exportKit builds; both exported pages include them and supply the color tokens.
+const EXPORT_DETAILS_CSS = `
+        [hidden] {
+            display: none !important;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
+        }
+
+        [data-ripple] {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: currentColor;
+            opacity: 0.18;
+            pointer-events: none;
+            transform: scale(0);
+            animation: ink 0.6s var(--ease-out) forwards;
+        }
+
+        @keyframes ink {
+            to { transform: scale(1); opacity: 0; }
+        }
+
+        .filter-chips,
+        .mini-chips {
+            position: relative;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .chip-glider {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 26px;
+            width: 0;
+            border-radius: 7px;
+            background: var(--panel-3);
+            box-shadow: inset 0 0 0 1px var(--line-2);
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.45s var(--spring), width 0.45s var(--spring), height 0.45s var(--spring);
+        }
+
+        .fchip,
+        .mchip {
+            position: relative;
+            z-index: 1;
+            overflow: hidden;
+            flex: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            height: 26px;
+            padding: 0 9px;
+            border: none;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text-3);
+            font-size: 12px;
+            font-weight: 550;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: color 0.2s var(--ease-out);
+        }
+
+        .fchip span,
+        .mchip span {
+            font-size: 11px;
+            color: var(--text-3);
+            font-variant-numeric: tabular-nums;
+            transition: color 0.2s;
+        }
+
+        .fchip:hover,
+        .mchip:hover,
+        .fchip[aria-pressed="true"],
+        .mchip[aria-pressed="true"] {
+            color: var(--text);
+        }
+
+        .fchip[aria-pressed="true"] span,
+        .mchip[aria-pressed="true"] span {
+            color: var(--text-2);
+        }
+
+        .fchip.err span {
+            color: var(--bad);
+        }
+
+        .fchip.toggle {
+            margin-left: 6px;
+            border: 1px dashed var(--line-2);
+        }
+
+        .fchip.toggle[aria-pressed="true"] {
+            border-style: solid;
+            border-color: rgba(229, 72, 77, 0.45);
+            background: var(--accent-soft);
+        }
+
+        .rd-inner {
+            padding-top: 10px;
+        }
+
+        .facts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .fact {
+            display: inline-flex;
+            gap: 5px;
+            padding: 2px 8px;
+            border: 1px solid var(--line-2);
+            border-radius: 6px;
+            font-size: 11.5px;
+            color: var(--text-3);
+        }
+
+        .fact b {
+            color: var(--text);
+            font-weight: 550;
+            overflow-wrap: anywhere;
+        }
+
+        .fact.bad b {
+            color: var(--bad);
+        }
+
+        .fact.strong {
+            border-color: color-mix(in srgb, var(--k-select) 45%, transparent);
+            background: color-mix(in srgb, var(--k-select) 10%, transparent);
+        }
+
+        .rd-error {
+            margin-top: 8px;
+            color: var(--bad);
+            font-family: var(--mono);
+            font-size: 11.5px;
+        }
+
+        .rd-note {
+            margin-top: 6px;
+            color: var(--text-3);
+            font-size: 11.5px;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 10px 0 2px;
+        }
+
+        .copy-btn,
+        .act-btn {
+            position: relative;
+            overflow: hidden;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 26px;
+            padding: 0 9px;
+            border: 1px solid var(--line-2);
+            border-radius: 7px;
+            background: var(--panel-2);
+            color: var(--text-2);
+            font-size: 11.5px;
+            font-weight: 550;
+            cursor: pointer;
+            transition: color 0.15s, border-color 0.15s, background 0.15s, transform 0.12s var(--ease-out);
+        }
+
+        .copy-btn:hover,
+        .act-btn:hover {
+            color: var(--text);
+            border-color: var(--line-3);
+            background: var(--panel-3);
+        }
+
+        .copy-btn:active,
+        .act-btn:active {
+            transform: scale(0.96);
+        }
+
+        .act-btn[aria-pressed="true"] {
+            color: var(--text);
+            border-color: color-mix(in srgb, var(--k-select) 55%, transparent);
+            background: color-mix(in srgb, var(--k-select) 12%, transparent);
+        }
+
+        .act-ic,
+        .ic-swap {
+            position: relative;
+            display: inline-block;
+            width: 13px;
+            height: 13px;
+        }
+
+        .act-ic svg,
+        .ic-swap svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.4s var(--bounce), opacity 0.2s;
+        }
+
+        .ic-swap .i-b {
+            opacity: 0;
+            transform: scale(0.3) rotate(-45deg);
+        }
+
+        .copied {
+            color: var(--ok) !important;
+            border-color: rgba(61, 214, 140, 0.45) !important;
+        }
+
+        .copied .ic-swap .i-a {
+            opacity: 0;
+            transform: scale(0.3) rotate(45deg);
+        }
+
+        .copied .ic-swap .i-b {
+            opacity: 1;
+            transform: none;
+        }
+
+        .dsec {
+            margin-top: 6px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--sunken);
+        }
+
+        .dsec > summary {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            list-style: none;
+            cursor: pointer;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--text-2);
+            border-radius: 8px;
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .dsec > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .dsec > summary:hover {
+            color: var(--text);
+            background: var(--hover);
+        }
+
+        .dsec-chev {
+            display: inline-flex;
+            width: 14px;
+            height: 14px;
+            transform: rotate(-90deg);
+            transition: transform 0.35s var(--spring);
+        }
+
+        .dsec-chev svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .dsec[open] .dsec-chev {
+            transform: none;
+        }
+
+        .dsec-count {
+            margin-left: auto;
+            color: var(--text-3);
+            font-weight: 500;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .dsec::details-content {
+            height: 0;
+            overflow: clip;
+            transition: height 0.35s var(--ease-out), content-visibility 0.35s allow-discrete;
+        }
+
+        .dsec[open]::details-content {
+            height: auto;
+        }
+
+        .dsec-body {
+            padding: 2px 10px 10px;
+        }
+
+        .kv {
+            display: grid;
+            grid-template-columns: minmax(80px, 32%) minmax(0, 1fr);
+            gap: 3px 12px;
+            font-family: var(--mono);
+            font-size: 11.5px;
+            line-height: 1.5;
+        }
+
+        .kv dt {
+            color: var(--text-3);
+            overflow-wrap: anywhere;
+        }
+
+        .kv dd {
+            color: var(--text);
+            overflow-wrap: anywhere;
+        }
+
+        .code {
+            max-height: 300px;
+            overflow: auto;
+            padding: 8px 10px;
+            border-radius: 6px;
+            background: var(--bg);
+            color: var(--text-2);
+            font: 11.5px/1.55 var(--mono);
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .j-key { color: var(--j-key); }
+        .j-str { color: var(--j-str); }
+        .j-num { color: var(--j-num); }
+        .j-lit { color: var(--j-lit); }
+
+        .sel-line {
+            display: block;
+            margin-top: 6px;
+            color: var(--text-3);
+            font-family: var(--mono);
+            font-size: 11px;
+            overflow-wrap: anywhere;
+        }
+
+        /* Snapshots */
+        .k-link { --kc: var(--k-link); }
+        .k-button { --kc: var(--k-button); }
+        .k-field { --kc: var(--k-field); }
+        .k-select { --kc: var(--k-select); }
+        .k-toggle { --kc: var(--k-toggle); }
+        .k-other { --kc: var(--k-other); }
+
+        .snap-map {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+            border: 1px solid var(--line-2);
+            border-radius: 6px;
+            background: var(--bg) radial-gradient(var(--dots) 1px, transparent 1.5px) 0 0 / 10px 10px;
+        }
+
+        .snap-map.thumb {
+            border-radius: 4px;
+        }
+
+        .snap-map.big {
+            width: min(100%, 380px);
+            margin-top: 10px;
+        }
+
+        .mbox {
+            position: absolute;
+            border: 1px solid var(--kc);
+            border-radius: 2px;
+            background: color-mix(in srgb, var(--kc) 14%, transparent);
+            transition: opacity 0.2s, box-shadow 0.2s, background 0.2s;
+        }
+
+        .snap-map.thumb .mbox {
+            border-width: 0.5px;
+        }
+
+        .snap-map.big .mbox {
+            cursor: pointer;
+            animation: fadeIn 0.5s var(--ease-out) both;
+        }
+
+        .snap-map .mbox.dim,
+        .snap-map.focusing .mbox:not(.hot) {
+            opacity: 0.18;
+        }
+
+        .snap-map .mbox.hot {
+            z-index: 2;
+            background: color-mix(in srgb, var(--kc) 35%, transparent);
+            box-shadow: 0 0 0 1.5px var(--kc), 0 0 12px var(--kc);
+        }
+
+        .kchips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 6px;
+        }
+
+        .kchip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 1px 7px;
+            border-radius: 5px;
+            background: var(--panel-2);
+            color: var(--text-2);
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .kdot,
+        .kchip i {
+            flex: none;
+            width: 7px;
+            height: 7px;
+            border-radius: 2px;
+            background: var(--kc);
+        }
+
+        .snap-url {
+            margin-top: 6px;
+            color: var(--text-3);
+            font-family: var(--mono);
+            font-size: 11px;
+            overflow-wrap: anywhere;
+        }
+
+        .el-tools {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .el-search-wrap {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            height: 30px;
+            padding: 0 10px;
+            border: 1px solid var(--line-2);
+            border-radius: 8px;
+            background: var(--bg);
+            color: var(--text-3);
+            transition: border-color 0.2s, box-shadow 0.25s;
+        }
+
+        .el-search-wrap:focus-within {
+            border-color: var(--line-3);
+            box-shadow: 0 0 0 4px rgba(241, 161, 13, 0.1);
+        }
+
+        .el-search-ic {
+            display: inline-flex;
+            width: 13px;
+            height: 13px;
+        }
+
+        .el-search-ic svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .el-search {
+            flex: 1;
+            min-width: 0;
+            border: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 12px;
+            outline: none;
+        }
+
+        .mchip {
+            height: 24px;
+            padding: 0 8px;
+            font-size: 11.5px;
+        }
+
+        .el-list {
+            position: relative;
+            max-height: 320px;
+            margin-top: 6px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            list-style: none;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--sunken);
+            padding: 3px;
+        }
+
+        .el-row {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 5px 6px 5px 8px;
+            border-radius: 6px;
+            transition: background 0.15s;
+            content-visibility: auto;
+            contain-intrinsic-size: auto 40px;
+        }
+
+        .el-row:hover,
+        .el-row.hot {
+            background: var(--panel-2);
+        }
+
+        .el-row.off {
+            opacity: 0.6;
+        }
+
+        .el-row.flash {
+            animation: flash 1.2s var(--ease-out);
+        }
+
+        @keyframes flash {
+            0%, 30% { background: color-mix(in srgb, var(--kc) 28%, transparent); box-shadow: inset 0 0 0 1px var(--kc); }
+        }
+
+        .el-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .el-top {
+            display: flex;
+            align-items: baseline;
+            gap: 7px;
+            min-width: 0;
+        }
+
+        .el-tag {
+            flex: none;
+            color: var(--kc);
+            font-family: var(--mono);
+            font-size: 11px;
+        }
+
+        .el-label {
+            min-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            font-size: 12px;
+            color: var(--text);
+        }
+
+        .el-off {
+            flex: none;
+            padding: 0 5px;
+            border-radius: 4px;
+            background: var(--panel-3);
+            color: var(--text-3);
+            font-size: 10.5px;
+        }
+
+        .el-sel {
+            display: block;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            color: var(--text-3);
+            font-family: var(--mono);
+            font-size: 10.5px;
+        }
+
+        .el-row .copy-btn {
+            flex: none;
+            height: 22px;
+            padding: 0 7px;
+            opacity: 0;
+            transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+        }
+
+        .el-row:hover .copy-btn,
+        .el-row.hot .copy-btn,
+        .el-row .copy-btn:focus-visible,
+        .el-row .copy-btn.copied {
+            opacity: 1;
+        }
+
+        .el-empty {
+            padding: 16px;
+            color: var(--text-3);
+            text-align: center;
+        }
+`.trim();
+
+// ---- Runs inside the exported pages (inlined with toString), never in the service worker. ----
+// Everything captured is rendered through textContent / text nodes, so page content can't execute.
+
+function exportKit() {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const ICON = {
+        copy: '<svg class="i-a" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><rect x="5.25" y="5.25" width="8" height="8" rx="1.75"/><path d="M10.75 5.25V4a1.25 1.25 0 00-1.25-1.25h-5A1.25 1.25 0 003.25 4v5A1.25 1.25 0 004.5 10.25h.75"/></svg>',
+        check: '<svg class="i-b" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>',
+        chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 6.5L8 9l2.5-2.5"/></svg>',
+        search: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.25"/><path d="M10.25 10.25L13.5 13.5"/></svg>',
+        eye: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 8S4 3.75 8 3.75 14.25 8 14.25 8 12 12.25 8 12.25 1.75 8 1.75 8z"/><circle cx="8" cy="8" r="2"/></svg>',
+    };
+    const KINDS = { link: 'Links', button: 'Buttons', field: 'Fields', select: 'Selects', toggle: 'Toggles', other: 'Clickable' };
+
+    function h(tag, props, children) {
+        const node = document.createElement(tag);
+        Object.keys(props || {}).forEach(key => {
+            const value = props[key];
+            if (value == null || value === false) return;
+            if (key === 'class') node.className = value;
+            else if (key === 'text') node.textContent = value;
+            else if (key === 'html') node.innerHTML = value; // static markup only (ICON)
+            else if (key === 'style') node.style.cssText = value;
+            else if (key.slice(0, 2) === 'on') node.addEventListener(key.slice(2), value);
+            else node.setAttribute(key, value === true ? '' : String(value));
+        });
+        [].concat(children == null ? [] : children).forEach(child => {
+            if (child != null && child !== false) node.append(child);
+        });
+        return node;
+    }
+
+    const announcer = h('div', { class: 'sr-only', 'aria-live': 'polite' });
+    document.body.append(announcer);
+    function announce(text) {
+        announcer.textContent = '';
+        setTimeout(() => { announcer.textContent = text; }, 30);
+    }
+
+    function copyText(text, btn) {
+        const done = () => {
+            btn.classList.remove('copied');
+            void btn.offsetWidth;
+            btn.classList.add('copied');
+            clearTimeout(btn._copiedTimer);
+            btn._copiedTimer = setTimeout(() => btn.classList.remove('copied'), 1400);
+            announce('Copied');
+        };
+        const fallback = () => {
+            const area = h('textarea', { readonly: true, style: 'position:fixed;top:0;left:0;opacity:0' });
+            area.value = text;
+            document.body.append(area);
+            area.select();
+            try {
+                if (document.execCommand('copy')) done();
+            } catch (e) {
+                announce('Copy failed');
+            }
+            area.remove();
+        };
+        if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, fallback);
+        else fallback();
+    }
+
+    function copyButton(label, getText) {
+        const btn = h('button', { class: 'copy-btn', type: 'button', 'data-ripple': true, title: label },
+            [h('span', { class: 'ic-swap', html: ICON.copy + ICON.check }), h('span', { text: label })]);
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            copyText(getText(), btn);
+        });
+        return btn;
+    }
+
+    // Material-style ink that grows from the pointer; hosts opt in with data-ripple.
+    document.addEventListener('pointerdown', e => {
+        const host = e.target.closest && e.target.closest('[data-ripple]');
+        if (!host || reduceMotion || host.disabled) return;
+        const rect = host.getBoundingClientRect();
+        const size = Math.max(rect.width, rect.height) * 2.2;
+        const ink = h('span', { class: 'ripple', style: 'width:' + size + 'px;height:' + size + 'px;left:' + (e.clientX - rect.left - size / 2) + 'px;top:' + (e.clientY - rect.top - size / 2) + 'px' });
+        host.append(ink);
+        ink.addEventListener('animationend', () => ink.remove());
+    });
+
+    // Cursor-following glow on anything marked data-spotlight (or its rows).
+    function spotlight(container, selector) {
+        container.addEventListener('pointermove', e => {
+            const target = e.target.closest && e.target.closest(selector);
+            if (!target) return;
+            const rect = target.getBoundingClientRect();
+            target.style.setProperty('--mx', (e.clientX - rect.left) + 'px');
+            target.style.setProperty('--my', (e.clientY - rect.top) + 'px');
+        });
+    }
+
+    // Counts up to the number already in the element (so the page reads correctly without this).
+    function ticker(el, delay) {
+        const to = Number(el.textContent.replace(/[^0-9]/g, ''));
+        if (!to || reduceMotion) return;
+        const format = n => n.toLocaleString();
+        const duration = Math.min(1400, 500 + to * 4);
+        el.textContent = '0';
+        setTimeout(() => {
+            const t0 = performance.now();
+            const frame = now => {
+                const p = Math.min(1, (now - t0) / duration);
+                el.textContent = format(Math.round(to * (1 - Math.pow(2, -10 * p)) / (1 - Math.pow(2, -10))));
+                if (p < 1) requestAnimationFrame(frame);
+                else el.textContent = format(to);
+            };
+            requestAnimationFrame(frame);
+        }, delay || 0);
+    }
+
+    // Odometer digits: each digit keeps its own text (so textContent stays "01:23") and a
+    // pseudo-element column 0-9 slides to it.
+    function clock(el) {
+        let shown = '';
+        return function set(text) {
+            if (text === shown) return;
+            if (text.length !== shown.length) {
+                el.replaceChildren();
+                for (const ch of text) el.append(h('span', { class: /\d/.test(ch) ? 'dg' : 'sep', text: ch }));
+            }
+            Array.from(el.children).forEach((span, i) => {
+                const ch = text[i];
+                if (span.textContent !== ch) span.textContent = ch;
+                if (/\d/.test(ch)) span.style.setProperty('--d', ch);
+            });
+            shown = text;
+        };
+    }
+
+    // Short cascade for the first rows that become visible.
+    function stagger(nodes, max) {
+        if (reduceMotion) return;
+        nodes.slice(0, max || 14).forEach((node, i) => {
+            node.style.setProperty('--i', i);
+            node.classList.remove('enter');
+            void node.offsetWidth;
+            node.classList.add('enter');
+            node.addEventListener('animationend', () => node.classList.remove('enter'), { once: true });
+        });
+    }
+
+    // Moves a highlight pill under the chosen child of a group (tabs, filter chips).
+    function glide(glider, target) {
+        if (!glider || !target) return;
+        // Chip groups can wrap, so their pill also follows the row; the tab underline only slides.
+        const wraps = glider.classList.contains('chip-glider');
+        glider.style.width = target.offsetWidth + 'px';
+        if (wraps) glider.style.height = target.offsetHeight + 'px';
+        glider.style.transform = 'translate(' + target.offsetLeft + 'px, ' + (wraps ? target.offsetTop : 0) + 'px)';
+        glider.style.opacity = '1';
+    }
+
+    function section(title, count, body, open) {
+        if (!body) return null;
+        const details = h('details', { class: 'dsec' }, [
+            h('summary', null, [h('span', { class: 'dsec-chev', html: ICON.chev }), h('span', { text: title }), count != null ? h('span', { class: 'dsec-count', text: String(count) }) : null]),
+            h('div', { class: 'dsec-body' }, body),
+        ]);
+        details.open = !!open;
+        return details;
+    }
+
+    function kvList(entries) {
+        if (!entries || !entries.length) return null;
+        return h('dl', { class: 'kv' }, entries.flatMap(([k, v]) => [h('dt', { text: k }), h('dd', { text: v == null ? '' : String(v) })]));
+    }
+
+    function objectEntries(obj) {
+        return obj && typeof obj === 'object' ? Object.keys(obj).map(k => [k, obj[k]]) : [];
+    }
+
+    // Small JSON highlighter that builds text nodes, never HTML.
+    function codeBlock(text) {
+        const pre = h('pre', { class: 'code' });
+        const trimmed = text.trim();
+        let pretty = text;
+        let json = false;
+        if (trimmed[0] === '{' || trimmed[0] === '[') {
+            try {
+                pretty = JSON.stringify(JSON.parse(trimmed), null, 2);
+                json = true;
+            } catch (e) { /* not JSON, show as-is */ }
+        }
+        if (!json || pretty.length > 60000) {
+            pre.textContent = pretty;
+            return pre;
+        }
+        const re = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
+        let last = 0;
+        let m;
+        while ((m = re.exec(pretty))) {
+            if (m.index > last) pre.append(pretty.slice(last, m.index));
+            const cls = m[1] ? (m[2] ? 'j-key' : 'j-str') : (m[3] ? 'j-lit' : 'j-num');
+            pre.append(h('span', { class: cls, text: m[1] || m[0] }));
+            if (m[2]) pre.append(m[2]);
+            last = re.lastIndex;
+        }
+        pre.append(pretty.slice(last));
+        return pre;
+    }
+
+    function fact(label, value, cls) {
+        if (value == null || value === '') return null;
+        return h('span', { class: 'fact' + (cls ? ' ' + cls : '') }, [label ? h('span', { text: label }) : null, h('b', { text: String(value) })]);
+    }
+
+    function shellQuote(s) {
+        return "'" + String(s).replace(/'/g, "'\\''") + "'";
+    }
+
+    function curlFor(req) {
+        const parts = ['curl ' + shellQuote(req.url)];
+        if (req.method !== 'GET') parts.push('-X ' + req.method);
+        objectEntries(req.reqHeaders).forEach(([k, v]) => {
+            if (k[0] !== ':') parts.push('-H ' + shellQuote(k + ': ' + v));
+        });
+        if (req.post) parts.push('--data-raw ' + shellQuote(req.post));
+        return parts.join(' \\\n  ');
+    }
+
+    function networkDetails(req) {
+        let params = [];
+        try {
+            params = Array.from(new URL(req.url).searchParams.entries());
+        } catch (e) { /* not a URL */ }
+        const reqHeaders = objectEntries(req.reqHeaders);
+        const resHeaders = objectEntries(req.resHeaders);
+        const statusLine = [req.status, req.statusText].filter(v => v !== '' && v != null).join(' ');
+        return h('div', { class: 'row-details' }, h('div', { class: 'rd-inner' }, [
+            h('div', { class: 'facts' }, [
+                fact('Status', statusLine, req.err ? 'bad' : ''),
+                fact('Type', req.mime),
+                fact('Time', req.msText),
+                fact('Size', req.sizeText),
+            ]),
+            req.error ? h('p', { class: 'rd-error', text: req.error }) : null,
+            h('div', { class: 'actions' }, [
+                copyButton('Copy URL', () => req.url),
+                copyButton('Copy as cURL', () => curlFor(req)),
+            ]),
+            section('Query parameters', params.length, kvList(params), params.length > 0 && params.length <= 12),
+            section('Request headers', reqHeaders.length, kvList(reqHeaders), false),
+            req.post ? section('Request body', null, [codeBlock(req.post), req.postCut ? h('p', { class: 'rd-note', text: 'Shortened here. The full body is in logs.json.' }) : null], true) : null,
+            section('Response headers', resHeaders.length, kvList(resHeaders), false),
+            req.body ? section('Response', null, [codeBlock(req.body), req.bodyCut ? h('p', { class: 'rd-note', text: 'Preview only. The full response is in logs.json.' }) : null], !req.post) : null,
+            req.bodyOmitted ? h('p', { class: 'rd-note', text: 'Script and style bodies are left out of this page. They are in logs.json.' }) : null,
+        ]));
+    }
+
+    function interactionDetails(ix) {
+        const at = p => p && p.clientX != null ? '(' + p.clientX + ', ' + p.clientY + ')' : '';
+        const entries = [];
+        if (ix.tag) entries.push(['Element', ix.tag + (ix.id ? '#' + ix.id : '') + (ix.cls ? '.' + ix.cls.trim().split(/\s+/).slice(0, 3).join('.') : '')]);
+        if (ix.text) entries.push(['Text', ix.text]);
+        if (ix.href) entries.push(['Link', ix.href]);
+        if (ix.type === 'click' && ix.coords) entries.push(['Position', at(ix.coords) + (ix.coords.pageX != null ? ' · page (' + ix.coords.pageX + ', ' + ix.coords.pageY + ')' : '')]);
+        if (ix.type === 'drag') entries.push(['Drag', at(ix.coords) + ' → ' + at(ix.end) + (ix.distance ? ' · ' + Math.round(ix.distance) + ' px' : '') + (ix.duration ? ' · ' + ix.duration + ' ms' : '')]);
+        if (ix.type === 'input') entries.push(['Typed', (ix.valueLength || 0) + ' characters' + (ix.inputType ? ' (' + ix.inputType + ')' : '') + '. Values are never recorded.']);
+        if (ix.type === 'change') entries.push(['Value', typeof ix.value === 'boolean' ? (ix.value ? 'checked' : 'unchecked') : (ix.value || 0) + ' characters. Values are never recorded.']);
+        if (ix.type === 'scroll') {
+            if (ix.from && ix.to) entries.push(['Scroll', '(' + ix.from.x + ', ' + ix.from.y + ') → (' + ix.to.x + ', ' + ix.to.y + ')']);
+            entries.push(['Events', ix.count + (ix.span ? ' over ' + (ix.span / 1000).toFixed(1) + ' s' : '')]);
+        }
+        if (ix.viewport) entries.push(['Viewport', ix.viewport.w + ' × ' + ix.viewport.h]);
+        if (ix.url) entries.push(['Page', ix.url]);
+        return h('div', { class: 'row-details' }, h('div', { class: 'rd-inner' }, [
+            kvList(entries),
+            ix.selector || ix.xpath ? h('div', { class: 'actions' }, [
+                ix.selector ? copyButton('Copy selector', () => ix.selector) : null,
+                ix.xpath ? copyButton('Copy XPath', () => ix.xpath) : null,
+            ]) : null,
+            ix.selector ? h('code', { class: 'sel-line', text: ix.selector }) : null,
+        ]));
+    }
+
+    function snapshotMap(snap, cls) {
+        const map = h('div', { class: 'snap-map ' + (cls || ''), style: 'aspect-ratio:' + snap.vw + ' / ' + snap.vh });
+        snap.els.forEach((el, n) => {
+            if (!el.v) return;
+            const x = Math.max(0, el.x), y = Math.max(0, el.y);
+            const w = Math.min(snap.vw, el.x + el.w) - x, hgt = Math.min(snap.vh, el.y + el.h) - y;
+            map.append(h('span', {
+                class: 'mbox k-' + el.k, 'data-n': n,
+                style: 'left:' + (x / snap.vw * 100) + '%;top:' + (y / snap.vh * 100) + '%;width:' + (w / snap.vw * 100) + '%;height:' + (hgt / snap.vh * 100) + '%',
+            }));
+        });
+        return map;
+    }
+
+    // hooks: { hover(n|null), outline(on) } - outline is only offered when there is video.
+    function snapshotDetails(snap, hooks) {
+        hooks = hooks || {};
+        const state = { kind: 'all', query: '' };
+        const kinds = Object.keys(KINDS).filter(k => snap.counts[k]);
+        const map = snapshotMap(snap, 'big');
+        const list = h('ul', { class: 'el-list', role: 'list' });
+        const rows = snap.els.map((el, n) => {
+            const row = h('li', { class: 'el-row k-' + el.k + (el.v ? '' : ' off'), 'data-n': n }, [
+                h('i', { class: 'kdot', 'aria-hidden': 'true' }),
+                h('div', { class: 'el-main' }, [
+                    h('div', { class: 'el-top' }, [h('code', { class: 'el-tag', text: el.tag }), h('span', { class: 'el-label', text: el.l || '(no text)' }), el.v ? null : h('span', { class: 'el-off', text: 'off-screen' })]),
+                    el.s ? h('code', { class: 'el-sel', text: el.s }) : null,
+                ]),
+                el.s ? copyButton('Copy', () => el.s) : null,
+            ]);
+            row._text = (el.tag + ' ' + el.l + ' ' + el.s + ' ' + el.href).toLowerCase();
+            list.append(row);
+            return row;
+        });
+        const empty = h('li', { class: 'el-empty', text: 'No elements match.', hidden: true });
+        list.append(empty);
+
+        const chipGroup = h('div', { class: 'mini-chips', role: 'group', 'aria-label': 'Element type' });
+        const glider = h('span', { class: 'chip-glider', 'aria-hidden': 'true' });
+        chipGroup.append(glider);
+        const chips = [['all', 'All', snap.els.length]].concat(kinds.map(k => [k, KINDS[k], snap.counts[k]])).map(([k, label, n]) => {
+            const chip = h('button', { class: 'mchip' + (k !== 'all' ? ' k-' + k : ''), type: 'button', 'aria-pressed': String(k === 'all'), 'data-ripple': true }, [k !== 'all' ? h('i', { class: 'kdot', 'aria-hidden': 'true' }) : null, label + ' ', h('span', { text: String(n) })]);
+            chip.addEventListener('click', e => {
+                e.stopPropagation();
+                state.kind = k;
+                chips.forEach(c => c.setAttribute('aria-pressed', String(c === chip)));
+                glide(glider, chip);
+                apply();
+            });
+            chipGroup.append(chip);
+            return chip;
+        });
+
+        const search = h('input', { class: 'el-search', type: 'search', placeholder: 'Find by text, tag or selector', 'aria-label': 'Find an element in this snapshot', autocomplete: 'off', spellcheck: 'false' });
+        search.addEventListener('input', () => {
+            state.query = search.value.trim().toLowerCase();
+            apply();
+        });
+        search.addEventListener('keydown', e => e.stopPropagation());
+
+        function apply() {
+            let shown = 0;
+            rows.forEach((row, n) => {
+                const el = snap.els[n];
+                const ok = (state.kind === 'all' || el.k === state.kind) && (!state.query || row._text.includes(state.query));
+                row.hidden = !ok;
+                if (ok) shown++;
+            });
+            map.querySelectorAll('.mbox').forEach(box => {
+                const el = snap.els[box.dataset.n];
+                box.classList.toggle('dim', !(state.kind === 'all' || el.k === state.kind) || (!!state.query && rows[box.dataset.n].hidden));
+            });
+            empty.hidden = shown > 0;
+        }
+
+        let hot = null;
+        function setHot(n) {
+            if (n === hot) return;
+            hot = n;
+            map.classList.toggle('focusing', n != null);
+            map.querySelectorAll('.mbox.hot').forEach(b => b.classList.remove('hot'));
+            rows.forEach(r => r.classList.remove('hot'));
+            if (n != null) {
+                const box = map.querySelector('.mbox[data-n="' + n + '"]');
+                if (box) box.classList.add('hot');
+                rows[n].classList.add('hot');
+            }
+            if (hooks.hover) hooks.hover(n);
+        }
+        const nOf = e => {
+            const t = e.target.closest && e.target.closest('[data-n]');
+            return t ? Number(t.dataset.n) : null;
+        };
+        list.addEventListener('pointerover', e => setHot(nOf(e)));
+        list.addEventListener('pointerleave', () => setHot(null));
+        map.addEventListener('pointerover', e => setHot(nOf(e)));
+        map.addEventListener('pointerleave', () => setHot(null));
+        map.addEventListener('click', e => {
+            const n = nOf(e);
+            if (n != null) reveal(n);
+        });
+
+        function reveal(n) {
+            const row = rows[n];
+            if (!row) return;
+            if (row.hidden) {
+                state.kind = 'all';
+                state.query = '';
+                search.value = '';
+                chips.forEach((c, i) => c.setAttribute('aria-pressed', String(i === 0)));
+                glide(glider, chips[0]);
+                apply();
+            }
+            list.scrollTo({ top: row.offsetTop - list.clientHeight / 2 + row.offsetHeight / 2, behavior: reduceMotion ? 'auto' : 'smooth' });
+            row.classList.remove('flash');
+            void row.offsetWidth;
+            row.classList.add('flash');
+        }
+
+        let outlineBtn = null;
+        if (hooks.outline) {
+            outlineBtn = h('button', { class: 'act-btn', type: 'button', 'aria-pressed': 'true', 'data-ripple': true }, [h('span', { class: 'act-ic', html: ICON.eye }), 'Outline on video']);
+            outlineBtn.addEventListener('click', e => {
+                e.stopPropagation();
+                const on = outlineBtn.getAttribute('aria-pressed') !== 'true';
+                outlineBtn.setAttribute('aria-pressed', String(on));
+                hooks.outline(on);
+            });
+        }
+
+        const node = h('div', { class: 'row-details snap-details' }, h('div', { class: 'rd-inner' }, [
+            h('div', { class: 'facts' }, [
+                fact('', snap.inView + ' in view', 'strong'),
+                fact('of', snap.els.length + ' captured'),
+                fact('Viewport', snap.vw + ' × ' + snap.vh),
+            ]),
+            h('p', { class: 'snap-url', text: snap.url }),
+            h('div', { class: 'actions' }, [
+                outlineBtn,
+                copyButton('Copy as JSON', () => JSON.stringify(snap.els.map(el => ({ type: el.k, tag: el.tag, text: el.l, selector: el.s, xpath: el.xp, href: el.href || undefined, rect: { x: el.x, y: el.y, width: el.w, height: el.h }, inView: el.v })), null, 2)),
+            ]),
+            map,
+            h('div', { class: 'el-tools' }, [h('label', { class: 'el-search-wrap' }, [h('span', { class: 'el-search-ic', html: ICON.search }), search]), chipGroup]),
+            list,
+        ]));
+        requestAnimationFrame(() => glide(glider, chips[0]));
+        return {
+            node,
+            reveal,
+            hover: setHot,
+            relayout() { glide(glider, chips.find(c => c.getAttribute('aria-pressed') === 'true')); },
+            setOutline(on) { if (outlineBtn) outlineBtn.setAttribute('aria-pressed', String(!!on)); },
+        };
+    }
+
+    return { reduceMotion, ICON, h, announce, copyText, copyButton, spotlight, ticker, clock, stagger, glide, networkDetails, interactionDetails, snapshotMap, snapshotDetails };
+}
+
+// ---- The session replay page's script (inlined with toString). ----
+function replayApp(cfg, kit) {
+    const startTime = cfg.startTime;
+    const hasVideo = cfg.hasVideo;
+    const fallbackDuration = cfg.fallbackDuration;
+    const clicks = cfg.clicks;
+    const reduceMotion = kit.reduceMotion;
+    const $ = id => document.getElementById(id);
+    const dataContent = $('dataContent');
+    const search = $('logSearch');
+    const resultCount = $('resultCount');
+    let seekVideo = null;
+    let playing = false;
+    let xray = null;
+    let openSnapshot = null;
+
+    const PLACEHOLDER = { network: 'Filter requests by URL, method or status', interactions: 'Filter interactions by element or text', snapshots: 'Filter snapshots by page' };
+    const state = {
+        network: { filter: 'all', query: '', hideOpt: false },
+        interactions: { filter: 'all', query: '' },
+        snapshots: { filter: 'all', query: '' },
+    };
+    const rowsOf = tab => Array.from($(tab + 'List').querySelectorAll('.log-item[data-timestamp]'));
+    // Read once, before any row is expanded, so search matches the row and never its open details.
+    const searchText = new WeakMap();
+    document.querySelectorAll('.log-item[data-timestamp]').forEach(row => searchText.set(row, row.textContent.toLowerCase()));
+    let activeTab = 'network';
+
+    // ---- Header ----
+    document.querySelectorAll('[data-tick]').forEach((el, i) => kit.ticker(el, 250 + i * 90));
+
+    // ---- Tabs (click, Space/Enter, or arrow keys inside the tab list) ----
+    const tabs = Array.from(document.querySelectorAll('.data-tab'));
+    const tabGlider = $('tabGlider');
+    function selectTab(tab) {
+        const from = tabs.findIndex(t => t.classList.contains('active'));
+        const to = tabs.indexOf(tab);
+        tabs.forEach(t => {
+            const on = t === tab;
+            t.classList.toggle('active', on);
+            t.setAttribute('aria-selected', String(on));
+            t.tabIndex = on ? 0 : -1;
+            $(t.dataset.tab + 'List').style.display = on ? 'block' : 'none';
+            $('chips-' + t.dataset.tab).hidden = !on;
+        });
+        activeTab = tab.dataset.tab;
+        kit.glide(tabGlider, tab);
+        search.value = state[activeTab].query;
+        search.placeholder = PLACEHOLDER[activeTab];
+        glideChips(activeTab);
+        updateCount(activeTab);
+        if (from !== to) {
+            const panel = $(activeTab + 'List');
+            panel.classList.remove('enter-l', 'enter-r');
+            if (!reduceMotion) {
+                void panel.offsetWidth;
+                panel.classList.add(to > from ? 'enter-r' : 'enter-l');
+            }
+            dataContent.scrollTop = 0;
+            kit.stagger(rowsOf(activeTab).filter(r => !r.hidden));
+            lastFollowed = null;
+            followNow(true);
+        }
+    }
+    tabs.forEach((tab, i) => {
+        tab.addEventListener('click', () => selectTab(tab));
+        tab.addEventListener('keydown', (e) => {
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+            const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+            selectTab(next);
+            next.focus();
+        });
+    });
+    $('networkList').addEventListener('animationend', e => e.target.classList.remove('enter-l', 'enter-r'));
+    ['interactions', 'snapshots'].forEach(t => $(t + 'List').addEventListener('animationend', e => e.target.classList.remove('enter-l', 'enter-r')));
+
+    // ---- Filters and search ----
+    function glideChips(tab) {
+        const group = $('chips-' + tab);
+        kit.glide(group.querySelector('.chip-glider'), group.querySelector('.fchip[data-f][aria-pressed="true"]'));
+    }
+    document.querySelectorAll('.filter-chips').forEach(group => {
+        const tab = group.id.replace('chips-', '');
+        group.addEventListener('click', e => {
+            const chip = e.target.closest('.fchip');
+            if (!chip) return;
+            if (chip.dataset.toggle === 'opt') {
+                state.network.hideOpt = chip.getAttribute('aria-pressed') !== 'true';
+                chip.setAttribute('aria-pressed', String(state.network.hideOpt));
+            } else {
+                state[tab].filter = chip.dataset.f;
+                group.querySelectorAll('.fchip[data-f]').forEach(c => c.setAttribute('aria-pressed', String(c === chip)));
+                glideChips(tab);
+            }
+            applyFilter(tab);
+        });
+    });
+    search.addEventListener('input', () => {
+        state[activeTab].query = search.value;
+        applyFilter(activeTab);
+    });
+    search.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && search.value) {
+            e.stopPropagation();
+            search.value = '';
+            state[activeTab].query = '';
+            applyFilter(activeTab);
+        } else if (e.key === 'Enter' || e.key === 'ArrowDown') {
+            const first = rowsOf(activeTab).find(r => !r.hidden);
+            if (first) {
+                e.preventDefault();
+                first.focus();
+            }
+        }
+    });
+
+    function applyFilter(tab) {
+        const st = state[tab];
+        const q = st.query.trim().toLowerCase();
+        const filtering = st.filter !== 'all' || !!q || !!st.hideOpt;
+        let shown = 0;
+        const rows = rowsOf(tab);
+        rows.forEach(row => {
+            let ok = st.filter === 'all' || (st.filter === 'err' ? row.dataset.err === '1' : row.dataset.k === st.filter);
+            if (ok && st.hideOpt && row.dataset.opt === '1') ok = false;
+            if (ok && q) ok = searchText.get(row).includes(q);
+            const wasHidden = row.hidden;
+            row.hidden = !ok;
+            if (ok) shown++;
+            if (ok && wasHidden && !reduceMotion) {
+                row.classList.add('pop');
+                row.addEventListener('animationend', () => row.classList.remove('pop'), { once: true });
+            }
+        });
+        $(tab + 'List').querySelectorAll('.nav-divider').forEach(d => { d.hidden = filtering; });
+        const empty = $(tab + 'List').querySelector('.filter-empty');
+        if (empty) empty.hidden = shown > 0 || rows.length === 0;
+        updateCount(tab, shown, filtering);
+    }
+
+    function updateCount(tab, shown, filtering) {
+        if (tab !== activeTab) return;
+        const total = rowsOf(tab).length;
+        if (shown == null) {
+            shown = rowsOf(tab).filter(r => !r.hidden).length;
+            filtering = shown !== total;
+        }
+        resultCount.textContent = total ? (filtering ? shown + ' of ' + total : total + (total === 1 ? ' row' : ' rows')) : '';
+        resultCount.classList.toggle('filtered', !!filtering);
+    }
+
+    document.addEventListener('keydown', e => {
+        if (e.target.closest('input, textarea, select')) return;
+        if (e.key === '/' && !e.metaKey && !e.ctrlKey) {
+            e.preventDefault();
+            search.focus();
+            search.select();
+        } else if ((e.key === 'f' || e.key === 'F') && !e.metaKey && !e.ctrlKey && followBtn) {
+            followBtn.click();
+        } else if (e.key === 'Escape' && xray) {
+            hideXray();
+        }
+    });
+
+    // ---- Rows: select to expand details and jump the video to that moment ----
+    function collapse(row) {
+        row.classList.remove('selected');
+        row.setAttribute('aria-expanded', 'false');
+        if (row.classList.contains('snap-row') && openSnapshot && openSnapshot.row === row) {
+            openSnapshot = null;
+            hideXray();
+        }
+    }
+    function details(row) {
+        const slot = row.querySelector('.row-slot');
+        if (slot.firstChild) return row._details;
+        const i = Number(row.dataset.i);
+        if (row.classList.contains('net-row')) slot.append(kit.networkDetails(Object.assign({}, cfg.net[i], { url: row.querySelector('.log-url').title })));
+        else if (row.classList.contains('ix-row')) slot.append(kit.interactionDetails(cfg.ix[i]));
+        else {
+            row._details = kit.snapshotDetails(cfg.snaps[i], {
+                hover: n => hoverXray(n),
+                outline: hasVideo ? on => {
+                    if (!on) return hideXray();
+                    seekVideo(cfg.snaps[i].t / 1000);
+                    showXray(i, true);
+                } : null,
+            });
+            slot.append(row._details.node);
+        }
+        return row._details;
+    }
+    function activate(row) {
+        const wasOpen = row.classList.contains('selected');
+        document.querySelectorAll('.log-item.selected').forEach(el => { if (el !== row) collapse(el); });
+        if (wasOpen) {
+            collapse(row);
+        } else {
+            const api = details(row);
+            row.classList.add('selected');
+            row.setAttribute('aria-expanded', 'true');
+            if (api) {
+                openSnapshot = { row, api, i: Number(row.dataset.i) };
+                requestAnimationFrame(() => api.relayout());
+            }
+        }
+        if (seekVideo) seekVideo((Number(row.dataset.timestamp) - startTime) / 1000);
+        if (!wasOpen && openSnapshot && openSnapshot.row === row && hasVideo) showXray(openSnapshot.i, true);
+    }
+    document.querySelectorAll('.log-item[data-timestamp]').forEach(item => {
+        item.addEventListener('click', e => {
+            if (e.target.closest('.row-details')) return;
+            activate(item);
+        });
+        item.addEventListener('keydown', e => {
+            if (e.target !== item) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                activate(item);
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const rows = rowsOf(activeTab).filter(r => !r.hidden);
+                const next = rows[rows.indexOf(item) + (e.key === 'ArrowDown' ? 1 : -1)];
+                if (next) next.focus();
+            }
+        });
+    });
+    kit.spotlight(dataContent, '.log-item');
+
+    // ---- Follow playback ----
+    const followBtn = $('followBtn');
+    const backNow = $('backNow');
+    let follow = true;
+    let followSuspended = false;
+    let lastFollowed = null;
+    function syncBackNow() {
+        if (backNow) backNow.classList.toggle('show', follow && followSuspended && playing);
+    }
+    function followNow(force) {
+        if (!follow || followSuspended || (!playing && !force)) return;
+        const row = $(activeTab + 'List').querySelector('.log-item.active:not([hidden])');
+        if (!row || (!force && row === lastFollowed)) return;
+        lastFollowed = row;
+        const top = row.offsetTop;
+        const view = dataContent.clientHeight;
+        if (top < dataContent.scrollTop + view * 0.12 || top + row.offsetHeight > dataContent.scrollTop + view * 0.88) {
+            dataContent.scrollTo({ top: Math.max(0, top - view * 0.3), behavior: reduceMotion ? 'auto' : 'smooth' });
+        }
+    }
+    if (followBtn) {
+        followBtn.addEventListener('click', () => {
+            follow = !follow;
+            followSuspended = false;
+            followBtn.setAttribute('aria-pressed', String(follow));
+            syncBackNow();
+            lastFollowed = null;
+            followNow(true);
+        });
+        backNow.addEventListener('click', () => {
+            followSuspended = false;
+            syncBackNow();
+            lastFollowed = null;
+            followNow(true);
+        });
+        const suspend = () => {
+            if (!follow || !playing || followSuspended) return;
+            followSuspended = true;
+            syncBackNow();
+        };
+        dataContent.addEventListener('wheel', suspend, { passive: true });
+        dataContent.addEventListener('touchmove', suspend, { passive: true });
+    }
+
+    // Initial counts, glider positions and entrance.
+    selectTab(tabs[0]);
+    kit.stagger(rowsOf('network'), 16);
+    window.addEventListener('resize', () => {
+        kit.glide(tabGlider, tabs.find(t => t.classList.contains('active')));
+        glideChips(activeTab);
+        if (openSnapshot) openSnapshot.api.relayout();
+    });
+
+    // Snapshot thumbnails in the rows.
+    document.querySelectorAll('.snap-thumb[data-i]').forEach(el => el.append(kit.snapshotMap(cfg.snaps[Number(el.dataset.i)], 'thumb')));
+
+    // ---- Snapshot outline on the video (x-ray) ----
+    let showXray = () => {};
+    let hideXray = () => {};
+    let hoverXray = () => {};
+
+    if (hasVideo) {
+        const video = $('videoPlayer');
+        const container = $('videoContainer');
+        const playBtn = $('playBtn');
+        const playRing = $('playRing');
+        const timelineSlider = $('timelineSlider');
+        const timelineProgress = $('timelineProgress');
+        const timelineGhost = $('timelineGhost');
+        const scrubTip = $('scrubTip');
+        const speedControl = $('speedControl');
+        const clickLayer = $('clickLayer');
+        const xrayLayer = $('xrayLayer');
+        const setClock = kit.clock($('timeDisplay'));
+        const CLICK_SHOW_SECONDS = 1.2;
+        const logItems = Array.from(document.querySelectorAll('.log-item[data-timestamp]'))
+            .map(el => ({ el, start: Number(el.dataset.timestamp), end: Number(el.dataset.end || el.dataset.timestamp), snap: el.classList.contains('snap-row') }));
+        const markers = clicks.map(click => {
+            const marker = kit.h('div', { class: 'click-marker' }, [
+                kit.h('span', { class: 'cm-ring' }),
+                kit.h('span', { class: 'cm-cursor', html: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l6.8 16.2 2.3-6.8 6.9-2.4L5 3z"/></svg>' }),
+                click.label ? kit.h('span', { class: 'cm-label', text: click.label }) : null,
+            ]);
+            clickLayer.appendChild(marker);
+            return marker;
+        });
+        let ticks = [];
+        let durationPending = false;
+        let pendingSeek = null;
+        let lastHighlightBucket = -1;
+        let activeSnapshots = 0;
+
+        function getDuration() {
+            return isFinite(video.duration) && video.duration > 0 ? video.duration : fallbackDuration;
+        }
+
+        function currentPosition() {
+            return durationPending ? (pendingSeek || 0) : video.currentTime;
+        }
+
+        // MediaRecorder WebM files carry no duration; seeking past the end makes the browser work it out.
+        function onMetadata() {
+            if (isFinite(video.duration)) {
+                renderTicks();
+                render();
+                return;
+            }
+            durationPending = true;
+            video.addEventListener('durationchange', function resolved() {
+                if (!isFinite(video.duration)) return;
+                video.removeEventListener('durationchange', resolved);
+                // Let the seek to the end finish first; overlapping seeks can leave the player off 0.
+                const finish = () => {
+                    durationPending = false;
+                    video.currentTime = pendingSeek || 0;
+                    pendingSeek = null;
+                    renderTicks();
+                    render();
+                };
+                if (video.seeking) video.addEventListener('seeked', finish, { once: true });
+                else finish();
+            });
+            video.currentTime = 1e101;
+        }
+        if (video.readyState >= 1) onMetadata();
+        else video.addEventListener('loadedmetadata', onMetadata, { once: true });
+
+        function seekTo(seconds) {
+            const target = Math.max(0, Math.min(seconds, getDuration()));
+            if (durationPending) pendingSeek = target;
+            else video.currentTime = target;
+            render();
+        }
+        seekVideo = seekTo;
+
+        function togglePlay() {
+            if (video.paused || video.ended) video.play();
+            else video.pause();
+        }
+
+        playBtn.addEventListener('click', togglePlay);
+        video.addEventListener('click', togglePlay);
+        document.addEventListener('keydown', (e) => {
+            if (e.code !== 'Space' || e.target.closest('button, select, input, textarea, .log-item')) return;
+            e.preventDefault();
+            togglePlay();
+        });
+
+        function setPlaying(on) {
+            playing = on;
+            document.body.classList.toggle('playing', on);
+            playBtn.classList.toggle('is-playing', on);
+            playBtn.setAttribute('aria-label', on ? 'Pause' : 'Play');
+            if (!on) followSuspended = false;
+            else lastFollowed = null; // the list may have been scrolled while paused
+            syncBackNow();
+        }
+        video.addEventListener('play', () => {
+            setPlaying(true);
+            hideXray();
+            requestAnimationFrame(loop);
+        });
+        video.addEventListener('pause', () => {
+            setPlaying(false);
+            render();
+        });
+        video.addEventListener('seeked', render);
+        window.addEventListener('resize', () => {
+            render();
+            if (xray) showXray(xray.index, false);
+        });
+
+        // Redraw every frame while playing; timeupdate only fires ~4 times a second.
+        function loop() {
+            render();
+            if (!video.paused && !video.ended) requestAnimationFrame(loop);
+        }
+
+        // Scrubber: click or drag; hover shows the time and the nearest marked event.
+        function fractionAt(e) {
+            const rect = timelineSlider.getBoundingClientRect();
+            return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        }
+        function seekFromPointer(e) {
+            seekTo(fractionAt(e) * getDuration());
+        }
+        timelineSlider.addEventListener('pointerdown', (e) => {
+            timelineSlider.setPointerCapture(e.pointerId);
+            timelineSlider.classList.add('dragging');
+            seekFromPointer(e);
+        });
+        timelineSlider.addEventListener('pointermove', (e) => {
+            if (timelineSlider.hasPointerCapture(e.pointerId)) seekFromPointer(e);
+            showTip(e);
+        });
+        timelineSlider.addEventListener('pointerup', () => timelineSlider.classList.remove('dragging'));
+        timelineSlider.addEventListener('pointerleave', () => timelineSlider.classList.remove('hovering'));
+        function showTip(e) {
+            const f = fractionAt(e);
+            const rect = timelineSlider.getBoundingClientRect();
+            const total = getDuration();
+            const seconds = f * total;
+            let near = null;
+            let best = 10 / rect.width * total;
+            cfg.marks.forEach(mark => {
+                const d = Math.abs(mark.t / 1000 - seconds);
+                if (d < best) { best = d; near = mark; }
+            });
+            scrubTip.replaceChildren(kit.h('b', { text: formatTime(near ? near.t / 1000 : seconds) }), near ? kit.h('span', { class: 'tip-' + near.kind, text: near.label }) : null);
+            const x = Math.max(scrubTip.offsetWidth / 2, Math.min(rect.width - scrubTip.offsetWidth / 2, f * rect.width));
+            scrubTip.style.setProperty('--x', x + 'px');
+            timelineGhost.style.width = (f * 100) + '%';
+            timelineSlider.classList.add('hovering');
+        }
+        timelineSlider.addEventListener('keydown', (e) => {
+            const step = { ArrowLeft: -5, ArrowRight: 5, ArrowDown: -5, ArrowUp: 5 }[e.key];
+            if (step) seekTo(currentPosition() + step);
+            else if (e.key === 'Home') seekTo(0);
+            else if (e.key === 'End') seekTo(getDuration());
+            else return;
+            e.preventDefault();
+        });
+
+        // Magnetic play button: it leans a few pixels toward the pointer.
+        if (!reduceMotion) {
+            playBtn.addEventListener('pointermove', e => {
+                const r = playBtn.getBoundingClientRect();
+                const dx = (e.clientX - r.left - r.width / 2) * 0.22;
+                const dy = (e.clientY - r.top - r.height / 2) * 0.22;
+                playBtn.style.setProperty('--tx', dx.toFixed(1) + 'px');
+                playBtn.style.setProperty('--ty', dy.toFixed(1) + 'px');
+            });
+            playBtn.addEventListener('pointerleave', () => {
+                playBtn.style.setProperty('--tx', '0px');
+                playBtn.style.setProperty('--ty', '0px');
+            });
+        }
+
+        // Speed control
+        speedControl.addEventListener('change', (e) => {
+            video.playbackRate = parseFloat(e.target.value);
+        });
+
+        function render() {
+            const current = currentPosition();
+            const total = getDuration();
+            const pct = total ? Math.min(100, (current / total) * 100) : 0;
+            timelineProgress.style.width = pct + '%';
+            playRing.style.strokeDashoffset = String(100 - pct);
+            setClock(formatTime(current) + ' / ' + formatTime(total));
+            timelineSlider.setAttribute('aria-valuemax', String(Math.round(total)));
+            timelineSlider.setAttribute('aria-valuenow', String(Math.round(current)));
+            timelineSlider.setAttribute('aria-valuetext', formatTime(current) + ' of ' + formatTime(total));
+            renderClicks(current);
+            if (xray && Math.abs(current - xray.at) > 0.6) hideXray();
+            const bucket = Math.floor(current * 4);
+            if (bucket !== lastHighlightBucket) {
+                lastHighlightBucket = bucket;
+                highlightCurrentEvents(current * 1000);
+                ticks.forEach(tick => tick.el.classList.toggle('passed', tick.t <= current * 1000 + 50));
+            }
+        }
+
+        function renderTicks() {
+            const total = getDuration();
+            if (!total) return;
+            timelineSlider.querySelectorAll('.click-tick, .snap-tick, .nav-tick').forEach(tick => tick.remove());
+            const at = t => Math.max(0, Math.min(100, (t / 1000 / total) * 100)) + '%';
+            ticks = [];
+            clicks.forEach(click => {
+                const tick = kit.h('div', { class: 'click-tick', style: 'left:' + at(click.t) });
+                timelineSlider.appendChild(tick);
+                ticks.push({ el: tick, t: click.t });
+            });
+            cfg.marks.forEach(mark => {
+                if (mark.kind === 'click') return;
+                const tick = kit.h('div', { class: mark.kind + '-tick', style: 'left:' + at(mark.t) });
+                timelineSlider.appendChild(tick);
+                ticks.push({ el: tick, t: mark.t });
+            });
+        }
+
+        // Where the frame is drawn inside the video element (object-fit: contain).
+        function frameBox() {
+            const vW = video.videoWidth;
+            const vH = video.videoHeight;
+            const scale = Math.min(video.clientWidth / vW, video.clientHeight / vH);
+            return { vW, vH, scale, left: (video.clientWidth - vW * scale) / 2, top: (video.clientHeight - vH * scale) / 2 };
+        }
+
+        // Tab capture letterboxes the tab's viewport into the frame, centered and aspect-preserved.
+        function framePoint(x, y, vw, vh, box) {
+            const s = Math.min(box.vW / vw, box.vH / vh);
+            const fx = (box.vW - vw * s) / 2 + x * s;
+            const fy = (box.vH - vh * s) / 2 + y * s;
+            return { x: box.left + fx * box.scale, y: box.top + fy * box.scale };
+        }
+
+        function clickPoint(click, box) {
+            return framePoint(click.x, click.y, click.vw, click.vh, box);
+        }
+
+        function renderClicks(current) {
+            if (!video.videoWidth) return;
+            const box = frameBox();
+            clicks.forEach((click, i) => {
+                const marker = markers[i];
+                const age = current - click.t / 1000;
+                // Small negative slack so seeking exactly onto a click still shows it.
+                if (age < -0.15 || age > CLICK_SHOW_SECONDS) {
+                    marker.style.display = 'none';
+                    return;
+                }
+                const point = clickPoint(click, box);
+                const progress = Math.max(0, age) / CLICK_SHOW_SECONDS;
+                marker.style.display = 'block';
+                marker.style.left = point.x + 'px';
+                marker.style.top = point.y + 'px';
+                marker.style.opacity = String(1 - progress * 0.85);
+                marker.style.setProperty('--s', String(0.7 + progress * 0.6));
+                marker.classList.toggle('flip', point.x > video.clientWidth - 220);
+            });
+        }
+
+        showXray = function (index, animate) {
+            const snap = cfg.snaps[index];
+            if (!snap) return;
+            if (!video.videoWidth) {
+                video.addEventListener('loadeddata', () => showXray(index, animate), { once: true });
+                return;
+            }
+            if (!video.paused) video.pause();
+            xray = { index, at: Math.max(0, Math.min(snap.t / 1000, getDuration())) };
+            const box = frameBox();
+            xrayLayer.replaceChildren();
+            xrayLayer.classList.toggle('static', !animate || reduceMotion);
+            let order = 0;
+            snap.els.forEach((el, n) => {
+                if (!el.v) return;
+                const a = framePoint(Math.max(0, el.x), Math.max(0, el.y), snap.vw, snap.vh, box);
+                const b = framePoint(Math.min(snap.vw, el.x + el.w), Math.min(snap.vh, el.y + el.h), snap.vw, snap.vh, box);
+                const node = kit.h('div', {
+                    class: 'xbox k-' + el.k + (a.y - box.top < 26 ? ' lbl-in' : ''),
+                    'data-n': n,
+                    style: 'left:' + a.x + 'px;top:' + a.y + 'px;width:' + Math.max(2, b.x - a.x) + 'px;height:' + Math.max(2, b.y - a.y) + 'px;--i:' + Math.min(order++, 60),
+                }, kit.h('span', { class: 'xlabel', text: (el.tag ? el.tag + ' · ' : '') + (el.l || el.s || '') }));
+                xrayLayer.append(node);
+            });
+            const close = kit.h('button', { class: 'xray-close', type: 'button', 'aria-label': 'Hide outlines', 'data-ripple': true, text: '×' });
+            close.addEventListener('click', e => {
+                e.stopPropagation();
+                hideXray();
+            });
+            xrayLayer.append(kit.h('div', { class: 'xray-badge' }, [kit.h('i', { class: 'xray-dot' }), kit.h('span', { text: snap.inView + ' elements in view' }), kit.h('kbd', { text: 'Esc' }), close]));
+            xrayLayer.hidden = false;
+            if (openSnapshot) openSnapshot.api.setOutline(true);
+        };
+        hideXray = function () {
+            if (!xray) return;
+            xray = null;
+            xrayLayer.hidden = true;
+            xrayLayer.replaceChildren();
+            if (openSnapshot) openSnapshot.api.setOutline(false);
+        };
+        hoverXray = function (n) {
+            xrayLayer.classList.toggle('focusing', n != null);
+            xrayLayer.querySelectorAll('.xbox.hot').forEach(b => b.classList.remove('hot'));
+            if (n != null) {
+                const b = xrayLayer.querySelector('.xbox[data-n="' + n + '"]');
+                if (b) b.classList.add('hot');
+            }
+        };
+        xrayLayer.addEventListener('click', e => {
+            const b = e.target.closest('.xbox');
+            if (b && openSnapshot) openSnapshot.api.reveal(Number(b.dataset.n));
+        });
+        xrayLayer.addEventListener('pointerover', e => {
+            const b = e.target.closest('.xbox');
+            if (openSnapshot) openSnapshot.api.hover(b ? Number(b.dataset.n) : null);
+        });
+        xrayLayer.addEventListener('pointerleave', () => { if (openSnapshot) openSnapshot.api.hover(null); });
+
+        function formatTime(seconds) {
+            if (!isFinite(seconds)) seconds = 0;
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
+        }
+
+        function highlightCurrentEvents(currentTimeMs) {
+            const currentTimestamp = startTime + currentTimeMs;
+            let snaps = 0;
+            logItems.forEach(({ el, start, end, snap }) => {
+                const on = currentTimestamp > start - 1000 && currentTimestamp < end + 1000;
+                el.classList.toggle('active', on);
+                if (on && snap) snaps++;
+            });
+            if (snaps > activeSnapshots && playing && !reduceMotion) {
+                const badge = document.querySelector('#tab-snapshots .tab-count');
+                badge.classList.remove('ping');
+                void badge.offsetWidth;
+                badge.classList.add('ping');
+            }
+            activeSnapshots = snaps;
+            followNow(false);
+        }
+
+        render();
+    }
+}
+
 /**
  * Generates HTML timeline with embedded video player
  * This creates a split-view interface:
  * - Left side: Video player with controls
  * - Right side: Synchronized logs (Network/Interactions/Snapshots)
- * 
+ *
  * The video is referenced by file name; the export zip ships it next to this HTML.
- * 
+ *
  * @param {Object} data - Export data with logs and metadata
  * @param {Blob|null} videoBlob - The video blob (only checked for presence)
  * @param {string|null} videoFileName - The video filename (for relative path reference)
@@ -2227,31 +4196,16 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
     const videoSrc = videoBlob ? (videoFileName || 'video.webm') : null;
     if (!videoSrc) console.warn('[VideoHTML] No video blob provided');
 
-    // Process events
-    const allEvents = [];
-
-    if (data.networkLogs) {
-        data.networkLogs.forEach(log => {
-            allEvents.push({ type: 'network', timestamp: log.timestamp, data: log });
-        });
-    }
-
-    if (data.interactionLogs) {
-        data.interactionLogs.forEach(log => {
-            allEvents.push({ type: 'interaction', timestamp: log.timestamp, data: log });
-        });
-    }
-
-    if (data.elementSnapshots) {
-        data.elementSnapshots.forEach(snapshot => {
-            allEvents.push({ type: 'snapshot', timestamp: snapshot.timestamp, data: snapshot });
-        });
-    }
-
-    allEvents.sort((a, b) => a.timestamp - b.timestamp);
-
-    const firstEventTime = allEvents.length > 0 ? allEvents[0].timestamp : Date.now();
-    const lastEventTime = allEvents.length > 0 ? allEvents[allEvents.length - 1].timestamp : Date.now();
+    const networkLogs = data.networkLogs || [];
+    const interactionLogs = data.interactionLogs || [];
+    const elementSnapshots = data.elementSnapshots || [];
+    let firstEventTime = Infinity;
+    let lastEventTime = -Infinity;
+    [networkLogs, interactionLogs, elementSnapshots].forEach(list => list.forEach(e => {
+        if (e.timestamp < firstEventTime) firstEventTime = e.timestamp;
+        if (e.timestamp > lastEventTime) lastEventTime = e.timestamp;
+    }));
+    if (!Number.isFinite(firstEventTime)) firstEventTime = lastEventTime = Date.now();
     // Anchor the timeline to when the video actually started (video t=0) so highlighted
     // events line up with the footage. Fall back to the first captured event for older
     // exports or when the video start time is unavailable.
@@ -2260,20 +4214,38 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
     const duration = Math.max(0, endTime - startTime);
 
     // Only what the player needs to draw clicks on the video (t = ms since video t=0).
-    const clicks = (data.interactionLogs || [])
+    const clicks = interactionLogs
         .filter(log => log.type === 'click' && log.coordinates && log.viewport)
         .map(log => ({
             t: log.timestamp - startTime,
             x: log.coordinates.clientX,
             y: log.coordinates.clientY,
             vw: log.viewport.width,
-            vh: log.viewport.height
+            vh: log.viewport.height,
+            label: targetLabel(log.element)
         }));
 
+    const net = networkLogs.map(requestModel);
+    const ixRows = interactionRows(interactionLogs);
+    const ix = ixRows.map(interactionModel);
+    const snaps = elementSnapshots.map(s => Object.assign(snapshotModel(s), { t: s.timestamp - startTime }));
+
+    // Moments worth a mark on the scrubber: clicks, snapshots and page changes.
+    const marks = clicks.map(c => ({ t: c.t, kind: 'click', label: 'Click' + (c.label ? ' · ' + c.label : '') }))
+        .concat(snaps.map(s => ({ t: s.t, kind: 'snap', label: 'Snapshot · ' + s.inView + ' elements in view' })));
+    ixRows.forEach((row, i) => {
+        if (i > 0 && pageKey(row.url) !== pageKey(ixRows[i - 1].url)) marks.push({ t: row.start - startTime, kind: 'nav', label: 'Page · ' + pathOf(row.url) });
+    });
+
     const recordedAt = new Date(data.exportDate).toLocaleString();
-    const pageUrl = ((data.interactionLogs || []).find(log => log.url) || (data.networkLogs || [])[0] || {}).url;
+    const pageUrl = (interactionLogs.find(log => log.url) || networkLogs[0] || {}).url;
     const host = hostOf(pageUrl);
-    const snapshotCount = (data.elementSnapshots || []).length;
+    const summary = data.summary || {};
+    const filterEmpty = '<li class="log-item filter-empty" hidden>Nothing matches this filter.</li>';
+    const chevron = '<span class="chev" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 6.5L8 9l2.5-2.5"/></svg></span>';
+
+    // Request URLs are already in each row's title, so the details script reads them from there.
+    const cfg = { startTime, hasVideo: !!videoSrc, fallbackDuration: duration / 1000, clicks, marks, net: net.map(m => Object.assign({}, m, { url: undefined })), ix, snaps };
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -2283,10 +4255,17 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
     <meta name="color-scheme" content="dark">
     <title>Session replay${host ? ' · ' + escapeHtml(host) : ''} · ${escapeHtml(recordedAt)}</title>
     <style>
+        @property --angle {
+            syntax: '<angle>';
+            inherits: false;
+            initial-value: 0deg;
+        }
+
         :root {
             --bg: #0c0c0e;
             --panel: #141417;
             --panel-2: #1b1b1f;
+            --panel-3: #222227;
             --line: #25252a;
             --line-2: #34343b;
             --text: #ececef;
@@ -2297,8 +4276,28 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             --ok: #3dd68c;
             --warn: #f1a10d;
             --info: #70b8ff;
+            --k-link: #70b8ff;
+            --k-button: #ff8589;
+            --k-field: #3dd68c;
+            --k-select: #f1a10d;
+            --k-toggle: #4cc9c0;
+            --k-other: #a1a1aa;
+            --line-3: #4a4a52;
+            --dots: rgba(255, 255, 255, 0.05);
+            --sunken: rgba(0, 0, 0, 0.16);
+            --hover: rgba(255, 255, 255, 0.025);
+            --bad: #ff8589;
+            --j-key: #9cc9ff;
+            --j-str: #8fe3b6;
+            --j-num: #ffc86b;
+            --j-lit: #ff9da0;
             --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+            --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+            /* Springs sampled into linear(): soft settles with ~1% overshoot, bouncy with ~9%. */
+            --spring: linear(0, 0.0198 1%, 0.0793 2.1%, 0.3115 5.2%, 0.5823 9.3%, 0.7792 13.5%, 0.8979 17.6%, 0.9618 21.8%, 0.9937 26.4%, 1.0082 31.7%, 1.0118 37.9%, 1.0068 50%, 0.9999 75%, 1);
+            --bounce: linear(0, 0.0236 1.1%, 0.0951 2.3%, 0.3793 5.8%, 0.6843 10.2%, 0.9021 14.6%, 1.0236 19.3%, 1.0783 23.6%, 1.0915 27.5%, 1.0804 31.9%, 1.0265 41.5%, 0.9978 51.6%, 0.9933 62%, 1.0004 85%, 1);
             --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+            interpolate-size: allow-keywords;
         }
 
         * {
@@ -2315,7 +4314,7 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             -webkit-font-smoothing: antialiased;
         }
 
-        button, select {
+        button, select, input {
             font: inherit;
             color: inherit;
         }
@@ -2340,7 +4339,7 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             padding: 12px 20px;
             border-bottom: 1px solid var(--line);
             background: var(--panel);
-            animation: fade 0.4s var(--ease) both;
+            animation: fade 0.5s var(--ease-out) both;
         }
 
         .mark {
@@ -2351,14 +4350,38 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             background: var(--text);
             display: grid;
             place-items: center;
+            transition: transform 0.4s var(--bounce);
+        }
+
+        .mark:hover {
+            transform: rotate(-8deg) scale(1.06);
         }
 
         .mark span {
+            position: relative;
             width: 11px;
             height: 11px;
             border-radius: 50%;
             background: var(--accent);
             box-shadow: 0 0 0 3px var(--text);
+        }
+
+        .mark span::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: var(--accent);
+            opacity: 0;
+        }
+
+        body.playing .mark span::after {
+            animation: ping 1.6s var(--ease-out) infinite;
+        }
+
+        @keyframes ping {
+            from { transform: scale(1); opacity: 0.7; }
+            to { transform: scale(2.6); opacity: 0; }
         }
 
         .title {
@@ -2371,12 +4394,19 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             letter-spacing: -0.01em;
         }
 
+        .title h1 span {
+            display: inline-block;
+            animation: blurIn 0.7s var(--ease-out) both;
+            animation-delay: calc(80ms + var(--i) * 70ms);
+        }
+
         .title p {
             font-size: 12px;
             color: var(--text-3);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            animation: blurIn 0.7s var(--ease-out) 240ms both;
         }
 
         .chips {
@@ -2397,6 +4427,8 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             font-size: 12px;
             color: var(--text-3);
             white-space: nowrap;
+            animation: blurIn 0.6s var(--ease-out) both;
+            animation-delay: calc(200ms + var(--i) * 60ms);
         }
 
         .chip b {
@@ -2415,7 +4447,7 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             flex: 1;
             min-height: 0;
             display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(340px, 38%);
+            grid-template-columns: minmax(0, 1fr) minmax(360px, 38%);
         }
 
         .video-section {
@@ -2424,7 +4456,7 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             min-width: 0;
             padding: 16px;
             gap: 12px;
-            animation: fade 0.45s var(--ease) 60ms both;
+            animation: fade 0.55s var(--ease-out) 60ms both;
         }
 
         .video-container {
@@ -2436,8 +4468,35 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             position: relative;
             overflow: hidden;
             border-radius: 12px;
-            background: #000;
+            background: #060607 radial-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1.5px) 0 0 / 16px 16px;
             box-shadow: 0 0 0 1px var(--line), 0 24px 48px -24px rgba(0, 0, 0, 0.8);
+        }
+
+        /* A light runs around the frame while the video plays. */
+        .video-container::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: 4;
+            padding: 1px;
+            border-radius: inherit;
+            background: conic-gradient(from var(--angle), transparent 0 70%, rgba(229, 72, 77, 0.65) 86%, rgba(255, 255, 255, 0.85) 92%, transparent 100%);
+            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.6s var(--ease-out);
+            animation: beam 5s linear infinite paused;
+        }
+
+        body.playing .video-container::after {
+            opacity: 0.85;
+            animation-play-state: running;
+        }
+
+        @keyframes beam {
+            to { --angle: 360deg; }
         }
 
         video {
@@ -2447,49 +4506,231 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             cursor: pointer;
         }
 
-        .click-layer {
+        .click-layer,
+        .xray-layer {
             position: absolute;
             inset: 0;
             pointer-events: none;
         }
 
+        .click-layer {
+            z-index: 2;
+        }
+
         .click-marker {
             position: absolute;
             display: none;
+            width: 0;
+            height: 0;
+        }
+
+        .cm-ring {
+            position: absolute;
+            left: -20px;
+            top: -20px;
             width: 40px;
             height: 40px;
-            margin: -20px 0 0 -20px;
             border-radius: 50%;
             border: 2px solid var(--accent);
-            background: rgba(229, 72, 77, 0.22);
-            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 0 18px rgba(229, 72, 77, 0.55);
+            background: rgba(229, 72, 77, 0.2);
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 0 22px rgba(229, 72, 77, 0.55);
+            transform: scale(var(--s, 1));
         }
 
-        .click-marker::after {
-            content: '';
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            width: 8px;
-            height: 8px;
-            margin: -4px 0 0 -4px;
-            border-radius: 50%;
-            background: var(--accent);
-        }
-
-        /* Ripple replays each time a marker appears (display none -> block restarts it). */
-        .click-marker::before {
+        /* Two rings ripple out each time a marker appears (display none -> block restarts them). */
+        .cm-ring::before,
+        .cm-ring::after {
             content: '';
             position: absolute;
             inset: -2px;
             border-radius: 50%;
             border: 2px solid var(--accent);
-            animation: ripple 0.7s var(--ease) both;
+            animation: ripple 0.8s var(--ease-out) both;
+        }
+
+        .cm-ring::after {
+            animation-delay: 0.14s;
         }
 
         @keyframes ripple {
             from { transform: scale(0.6); opacity: 0.9; }
-            to { transform: scale(2.2); opacity: 0; }
+            to { transform: scale(2.3); opacity: 0; }
+        }
+
+        .cm-cursor {
+            position: absolute;
+            left: -3px;
+            top: -3px;
+            width: 22px;
+            height: 22px;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+            animation: press 0.45s var(--bounce) both;
+        }
+
+        .cm-cursor svg {
+            width: 100%;
+            height: 100%;
+            fill: #fff;
+            stroke: #0c0c0e;
+            stroke-width: 1.4;
+            stroke-linejoin: round;
+        }
+
+        @keyframes press {
+            0% { transform: translate(-6px, -6px) scale(1.2); opacity: 0; }
+            55% { transform: scale(0.82); opacity: 1; }
+            100% { transform: none; }
+        }
+
+        .cm-label {
+            position: absolute;
+            left: 24px;
+            top: 14px;
+            max-width: 220px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(12, 12, 14, 0.88);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #fff;
+            font-size: 11.5px;
+            font-weight: 550;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            backdrop-filter: blur(6px);
+            animation: labelIn 0.5s var(--ease-out) 0.1s both;
+        }
+
+        .click-marker.flip .cm-label {
+            left: auto;
+            right: 18px;
+        }
+
+        @keyframes labelIn {
+            from { opacity: 0; transform: translateY(4px); filter: blur(4px); }
+        }
+
+        /* Snapshot outlines over the video */
+        .xray-layer {
+            z-index: 3;
+            background: rgba(6, 6, 7, 0.28);
+            animation: fadeIn 0.3s var(--ease-out);
+        }
+
+        .xbox {
+            position: absolute;
+            pointer-events: auto;
+            cursor: pointer;
+            border: 1.5px solid var(--kc);
+            border-radius: 3px;
+            background: color-mix(in srgb, var(--kc) 9%, transparent);
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+            transition: opacity 0.2s var(--ease-out), background 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out);
+            animation: xin 0.5s var(--ease-out) both;
+            animation-delay: calc(var(--i) * 10ms);
+        }
+
+        .xray-layer.static .xbox,
+        .xray-layer.static {
+            animation: none;
+        }
+
+        @keyframes xin {
+            from { opacity: 0; transform: scale(1.08); }
+        }
+
+        .xray-layer.focusing .xbox:not(.hot) {
+            opacity: 0.2;
+        }
+
+        .xbox:hover,
+        .xbox.hot {
+            z-index: 2;
+            background: color-mix(in srgb, var(--kc) 22%, transparent);
+            box-shadow: 0 0 0 2px var(--kc), 0 0 20px color-mix(in srgb, var(--kc) 55%, transparent);
+        }
+
+        .xlabel {
+            position: absolute;
+            left: -1.5px;
+            bottom: calc(100% + 4px);
+            max-width: 260px;
+            padding: 2px 7px;
+            border-radius: 5px;
+            background: var(--kc);
+            color: #0c0c0e;
+            font-size: 11px;
+            font-weight: 650;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            opacity: 0;
+            transform: translateY(3px);
+            transition: opacity 0.18s var(--ease-out), transform 0.25s var(--spring);
+            pointer-events: none;
+        }
+
+        .xbox.lbl-in .xlabel {
+            bottom: auto;
+            top: calc(100% + 4px);
+        }
+
+        .xbox:hover .xlabel,
+        .xbox.hot .xlabel {
+            opacity: 1;
+            transform: none;
+        }
+
+        .xray-badge {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 4px 4px 12px;
+            border: 1px solid var(--line-2);
+            border-radius: 999px;
+            background: rgba(20, 20, 23, 0.86);
+            backdrop-filter: blur(10px);
+            font-size: 12px;
+            pointer-events: auto;
+            transform: translateX(-50%);
+            animation: drop 0.55s var(--bounce) both;
+        }
+
+        @keyframes drop {
+            from { opacity: 0; transform: translate(-50%, -14px) scale(0.92); }
+        }
+
+        .xray-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 2px;
+            background: var(--k-select);
+            transform: rotate(45deg);
+        }
+
+        .xray-close {
+            position: relative;
+            overflow: hidden;
+            width: 24px;
+            height: 24px;
+            border: none;
+            border-radius: 50%;
+            background: var(--panel-3);
+            color: var(--text-2);
+            font-size: 15px;
+            line-height: 1;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s, transform 0.3s var(--bounce);
+        }
+
+        .xray-close:hover {
+            background: var(--line-2);
+            color: var(--text);
+            transform: rotate(90deg);
         }
 
         .video-placeholder {
@@ -2500,6 +4741,7 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             text-align: center;
             color: var(--text-3);
             max-width: 340px;
+            animation: blurIn 0.7s var(--ease-out) 0.2s both;
         }
 
         .video-placeholder svg {
@@ -2529,44 +4771,137 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
         }
 
         .play-btn {
+            position: relative;
             flex: none;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
+            width: 44px;
+            height: 44px;
             border: none;
-            background: var(--text);
+            border-radius: 50%;
+            background: transparent;
             color: var(--bg);
             display: grid;
             place-items: center;
             cursor: pointer;
-            transition: transform 0.15s var(--ease), background 0.15s var(--ease);
+            transform: translate(var(--tx, 0px), var(--ty, 0px));
+            transition: transform 0.45s var(--spring);
         }
 
-        .play-btn:hover {
+        .play-btn::before {
+            content: '';
+            position: absolute;
+            inset: 4px;
+            border-radius: 50%;
+            background: var(--text);
+            transition: transform 0.25s var(--bounce), background 0.2s var(--ease-out);
+        }
+
+        .play-btn:hover::before {
             background: #fff;
+            transform: scale(1.05);
         }
 
-        .play-btn:active {
-            transform: scale(0.94);
+        .play-btn:active::before {
+            transform: scale(0.9);
         }
 
-        .play-btn svg {
+        .play-btn .ripple {
+            color: var(--bg);
+            clip-path: circle(18px at 50% 50%);
+        }
+
+        .play-btn .ring {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+            pointer-events: none;
+        }
+
+        .ring circle {
+            fill: none;
+            stroke-width: 2;
+        }
+
+        .ring-track {
+            stroke: var(--line-2);
+        }
+
+        .ring-fill {
+            stroke: var(--accent);
+            stroke-linecap: round;
+            stroke-dasharray: 100;
+            stroke-dashoffset: 100;
+        }
+
+        .play-btn .ic {
+            position: absolute;
+            left: 50%;
+            top: 50%;
             width: 16px;
             height: 16px;
+            margin: -8px 0 0 -8px;
+            transition: transform 0.45s var(--bounce), opacity 0.2s var(--ease-out);
+        }
+
+        .ic-play {
+            margin-left: -7px !important;
+        }
+
+        .ic-pause {
+            opacity: 0;
+            transform: rotate(-90deg) scale(0.4);
+        }
+
+        .play-btn.is-playing .ic-play {
+            opacity: 0;
+            transform: rotate(90deg) scale(0.4);
+        }
+
+        .play-btn.is-playing .ic-pause {
+            opacity: 1;
+            transform: none;
         }
 
         .time-display {
             flex: none;
-            min-width: 96px;
+            min-width: 100px;
             font-family: var(--mono);
             font-size: 12px;
+            line-height: 1.3em;
             color: var(--text-2);
             font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .time-display .dg {
+            position: relative;
+            display: inline-block;
+            width: 1ch;
+            height: 1.3em;
+            overflow: hidden;
+            vertical-align: top;
+            color: transparent;
+        }
+
+        .time-display .dg::before {
+            content: '0\\A 1\\A 2\\A 3\\A 4\\A 5\\A 6\\A 7\\A 8\\A 9';
+            position: absolute;
+            left: 0;
+            top: 0;
+            white-space: pre;
+            color: var(--text-2);
+            transform: translateY(calc(var(--d, 0) * -1.3em));
+            transition: transform 0.5s var(--spring);
+        }
+
+        .time-display .sep {
+            white-space: pre;
         }
 
         .timeline-slider {
             flex: 1;
-            height: 22px;
+            height: 26px;
             position: relative;
             cursor: pointer;
             touch-action: none;
@@ -2583,9 +4918,10 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             margin-top: -2px;
             border-radius: 2px;
             background: var(--line-2);
-            transition: transform 0.15s var(--ease);
+            transition: transform 0.25s var(--spring);
         }
 
+        .timeline-ghost,
         .timeline-progress {
             position: absolute;
             left: 0;
@@ -2593,15 +4929,40 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             height: 4px;
             margin-top: -2px;
             border-radius: 2px;
-            background: var(--accent);
-            transition: transform 0.15s var(--ease);
+            transition: transform 0.25s var(--spring);
+        }
+
+        .timeline-ghost {
+            width: 0;
+            background: rgba(255, 255, 255, 0.16);
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.25s var(--spring);
+        }
+
+        .timeline-slider.hovering .timeline-ghost {
+            opacity: 1;
+        }
+
+        .timeline-progress {
+            background: linear-gradient(90deg, #b8353a, var(--accent) 60%, #ff8589);
+            background-size: 200% 100%;
+        }
+
+        body.playing .timeline-progress {
+            animation: sheen 2.4s linear infinite;
+        }
+
+        @keyframes sheen {
+            from { background-position: 100% 0; }
+            to { background-position: -100% 0; }
         }
 
         .timeline-slider:hover::before,
         .timeline-slider:hover .timeline-progress,
+        .timeline-slider:hover .timeline-ghost,
         .timeline-slider:focus-visible::before,
         .timeline-slider:focus-visible .timeline-progress {
-            transform: scaleY(1.5);
+            transform: scaleY(1.6);
         }
 
         .timeline-handle {
@@ -2615,25 +4976,130 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             background: #fff;
             box-shadow: 0 0 0 4px rgba(229, 72, 77, 0.35), 0 2px 6px rgba(0, 0, 0, 0.5);
             transform: scale(0.6);
-            transition: transform 0.15s var(--ease);
+            transition: transform 0.35s var(--bounce), box-shadow 0.2s;
         }
 
         .timeline-slider:hover .timeline-handle,
-        .timeline-slider:focus-visible .timeline-handle,
-        .timeline-slider:active .timeline-handle {
-            transform: scale(1);
+        .timeline-slider:focus-visible .timeline-handle {
+            transform: scale(1) scaleY(0.625);
+        }
+
+        .timeline-slider.dragging .timeline-handle {
+            transform: scale(1.25) scaleY(0.625);
+            box-shadow: 0 0 0 7px rgba(229, 72, 77, 0.3), 0 2px 6px rgba(0, 0, 0, 0.5);
+        }
+
+        .click-tick,
+        .snap-tick,
+        .nav-tick {
+            position: absolute;
+            top: 50%;
+            pointer-events: none;
+            transition: transform 0.4s var(--bounce), opacity 0.3s, background 0.3s, box-shadow 0.3s;
         }
 
         .click-tick {
-            position: absolute;
-            top: 50%;
             width: 2px;
             height: 10px;
             margin: -5px 0 0 -1px;
             border-radius: 1px;
             background: #fff;
             opacity: 0.55;
+        }
+
+        .click-tick.passed {
+            background: #fff;
+            opacity: 1;
+            transform: scaleY(1.35);
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
+        }
+
+        .snap-tick {
+            width: 8px;
+            height: 8px;
+            margin: -13px 0 0 -4px;
+            border-radius: 2px;
+            background: var(--k-select);
+            box-shadow: 0 0 0 2px var(--panel);
+            transform: rotate(45deg) scale(0.85);
+        }
+
+        .snap-tick.passed {
+            transform: rotate(45deg) scale(1.1);
+            box-shadow: 0 0 0 2px var(--panel), 0 0 10px var(--k-select);
+        }
+
+        .nav-tick {
+            width: 6px;
+            height: 6px;
+            margin: 6px 0 0 -3px;
+            border-radius: 50%;
+            background: var(--info);
+            opacity: 0.75;
+        }
+
+        .nav-tick.passed {
+            opacity: 1;
+            transform: scale(1.3);
+        }
+
+        .scrub-tip {
+            position: absolute;
+            left: 0;
+            bottom: calc(100% + 8px);
+            z-index: 6;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            max-width: 340px;
+            padding: 4px 9px;
+            border-radius: 7px;
+            background: var(--text);
+            color: var(--bg);
+            font-size: 11.5px;
+            white-space: nowrap;
             pointer-events: none;
+            opacity: 0;
+            transform: translate(calc(var(--x, 0px) - 50%), 4px) scale(0.96);
+            transition: opacity 0.15s var(--ease-out), transform 0.22s var(--spring);
+        }
+
+        .scrub-tip b {
+            font-family: var(--mono);
+            font-weight: 650;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .scrub-tip span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #3f3f46;
+        }
+
+        .scrub-tip span::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            margin-right: 6px;
+            border-radius: 50%;
+            vertical-align: 1px;
+            background: var(--accent);
+        }
+
+        .scrub-tip .tip-snap::before {
+            border-radius: 1px;
+            background: #c27c00;
+            transform: rotate(45deg);
+        }
+
+        .scrub-tip .tip-nav::before {
+            background: #0d74ce;
+        }
+
+        .timeline-slider.hovering:not(.dragging) .scrub-tip {
+            opacity: 1;
+            transform: translate(calc(var(--x, 0px) - 50%), 0) scale(1);
         }
 
         .speed-control {
@@ -2646,6 +5112,12 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             font-size: 12px;
             font-variant-numeric: tabular-nums;
             cursor: pointer;
+            transition: border-color 0.15s, background 0.15s;
+        }
+
+        .speed-control:hover {
+            border-color: #4a4a52;
+            background: var(--panel-3);
         }
 
         .shortcuts {
@@ -2666,12 +5138,14 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
 
         /* Side panel */
         .data-section {
+            position: relative;
             display: flex;
             flex-direction: column;
             min-height: 0;
+            min-width: 0;
             border-left: 1px solid var(--line);
             background: var(--panel);
-            animation: fade 0.45s var(--ease) 120ms both;
+            animation: fade 0.55s var(--ease-out) 120ms both;
         }
 
         .data-header {
@@ -2680,8 +5154,22 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
         }
 
         .data-tabs {
+            position: relative;
             display: flex;
             gap: 4px;
+        }
+
+        .tab-glider {
+            position: absolute;
+            left: 0;
+            bottom: -1px;
+            height: 2px;
+            width: 0;
+            border-radius: 2px;
+            background: var(--accent);
+            box-shadow: 0 0 12px rgba(229, 72, 77, 0.6);
+            opacity: 0;
+            transition: transform 0.5s var(--spring), width 0.5s var(--spring);
         }
 
         .data-tab {
@@ -2691,96 +5179,437 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             gap: 6px;
             padding: 8px 10px 11px;
             border: none;
+            border-radius: 7px 7px 0 0;
             background: transparent;
             color: var(--text-3);
             font-size: 12.5px;
             font-weight: 550;
             cursor: pointer;
-            transition: color 0.15s var(--ease);
-        }
-
-        .data-tab::after {
-            content: '';
-            position: absolute;
-            left: 10px;
-            right: 10px;
-            bottom: -1px;
-            height: 2px;
-            border-radius: 2px;
-            background: var(--accent);
-            transform: scaleX(0);
-            transition: transform 0.2s var(--ease);
+            overflow: hidden;
+            transition: color 0.2s var(--ease-out), background 0.2s var(--ease-out);
         }
 
         .data-tab:hover {
             color: var(--text);
+            background: rgba(255, 255, 255, 0.03);
         }
 
         .data-tab.active {
             color: var(--text);
         }
 
-        .data-tab.active::after {
-            transform: scaleX(1);
-        }
-
         .tab-count {
+            position: relative;
             padding: 0 6px;
             border-radius: 5px;
             background: var(--panel-2);
             color: var(--text-3);
             font-size: 11px;
             font-variant-numeric: tabular-nums;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .data-tab.active .tab-count {
+            background: var(--accent-soft);
+            color: #ff9ea1;
+        }
+
+        .tab-count.ping::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            box-shadow: 0 0 0 2px var(--k-select);
+            animation: badgePing 0.9s var(--ease-out) forwards;
+        }
+
+        @keyframes badgePing {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(1.6); }
+        }
+
+        /* Search, follow and filters */
+        .panel-tools {
+            display: flex;
+            gap: 8px;
+            padding: 10px 12px 0;
+        }
+
+        .search {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            height: 32px;
+            padding: 0 6px 0 10px;
+            border: 1px solid var(--line-2);
+            border-radius: 9px;
+            background: var(--bg);
+            color: var(--text-3);
+            cursor: text;
+            transition: border-color 0.2s var(--ease-out), box-shadow 0.25s var(--ease-out), background 0.2s;
+        }
+
+        .search:focus-within {
+            border-color: #55555e;
+            background: #0f0f12;
+            box-shadow: 0 0 0 4px rgba(229, 72, 77, 0.12);
+        }
+
+        .search svg {
+            flex: none;
+            width: 14px;
+            height: 14px;
+            transition: color 0.2s, transform 0.4s var(--bounce);
+        }
+
+        .search:focus-within svg {
+            color: var(--text);
+            transform: scale(1.12) rotate(-8deg);
+        }
+
+        .search input {
+            flex: 1;
+            min-width: 0;
+            border: none;
+            background: transparent;
+            color: var(--text);
+            font-size: 12.5px;
+            outline: none;
+        }
+
+        .search input::placeholder {
+            color: var(--text-3);
+        }
+
+        .search kbd {
+            transition: opacity 0.2s;
+        }
+
+        .search:focus-within kbd {
+            opacity: 0;
+        }
+
+        .follow-btn {
+            position: relative;
+            overflow: hidden;
+            flex: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            height: 32px;
+            padding: 0 11px;
+            border: 1px solid var(--line-2);
+            border-radius: 9px;
+            background: var(--panel-2);
+            color: var(--text-3);
+            font-size: 12px;
+            font-weight: 550;
+            cursor: pointer;
+            transition: color 0.2s, border-color 0.2s, background 0.2s;
+        }
+
+        .follow-btn:hover {
+            color: var(--text);
+        }
+
+        .follow-dot {
+            position: relative;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--text-3);
+            transition: background 0.2s, transform 0.4s var(--bounce);
+        }
+
+        .follow-btn[aria-pressed="true"] {
+            color: var(--text);
+            border-color: rgba(229, 72, 77, 0.45);
+            background: var(--accent-soft);
+        }
+
+        .follow-btn[aria-pressed="true"] .follow-dot {
+            background: var(--accent);
+            transform: scale(1.15);
+        }
+
+        body.playing .follow-btn[aria-pressed="true"] .follow-dot::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: var(--accent);
+            animation: ping 1.6s var(--ease-out) infinite;
+        }
+
+        .chip-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 44px;
+            padding: 8px 12px 9px;
+        }
+
+        ${EXPORT_DETAILS_CSS}
+
+        .chip-row > .filter-chips {
+            flex: 1 1 auto;
+        }
+
+        .chip-hint {
+            color: var(--text-3);
+            font-size: 12px;
+        }
+
+        .result-count {
+            flex: none;
+            margin-left: auto;
+            font-size: 11.5px;
+            color: var(--text-3);
+            font-variant-numeric: tabular-nums;
+            transition: color 0.2s;
+        }
+
+        .result-count.filtered {
+            color: var(--text);
+            animation: blurIn 0.35s var(--ease-out);
         }
 
         .data-content {
+            position: relative;
             flex: 1;
             overflow-y: auto;
             overscroll-behavior: contain;
+            -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+            mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+        }
+
+        .scroll-progress {
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            height: 2px;
+            margin-bottom: -2px;
+            background: linear-gradient(90deg, transparent, var(--accent));
+            transform: scaleX(0);
+            transform-origin: left;
+        }
+
+        @supports (animation-timeline: scroll()) {
+            .scroll-progress {
+                animation: grow linear both;
+                animation-timeline: scroll(nearest block);
+            }
+        }
+
+        @keyframes grow {
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
         }
 
         .log-list {
             list-style: none;
-            padding: 6px;
+            padding: 6px 6px 28px;
+        }
+
+        .log-list.enter-r { animation: panelR 0.36s var(--ease-out); }
+        .log-list.enter-l { animation: panelL 0.36s var(--ease-out); }
+
+        @keyframes panelR {
+            from { opacity: 0; transform: translateX(18px); filter: blur(3px); }
+        }
+
+        @keyframes panelL {
+            from { opacity: 0; transform: translateX(-18px); filter: blur(3px); }
         }
 
         .log-item {
+            position: relative;
+            isolation: isolate;
             display: flex;
             align-items: flex-start;
             gap: 10px;
-            padding: 9px 10px;
-            border-radius: 8px;
+            padding: 9px 30px 9px 12px;
+            border-radius: 9px;
             cursor: pointer;
-            transition: background 0.16s var(--ease), box-shadow 0.16s var(--ease);
+            outline-offset: -2px;
+            transition: background 0.2s var(--ease-out), opacity 0.2s;
         }
 
         .log-item + .log-item {
             margin-top: 1px;
         }
 
+        /* Cursor spotlight */
+        .log-item::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            border-radius: inherit;
+            background: radial-gradient(240px circle at var(--mx, -400px) var(--my, -400px), rgba(255, 255, 255, 0.07), transparent 65%);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s var(--ease-out);
+        }
+
+        .log-item:hover::before {
+            opacity: 1;
+        }
+
+        /* "Now" bar on the left: grows in for the current moment, red when selected. */
+        .log-item::after {
+            content: '';
+            position: absolute;
+            left: 2px;
+            top: 9px;
+            bottom: 9px;
+            width: 2px;
+            border-radius: 2px;
+            background: var(--text-3);
+            transform: scaleY(0);
+            transition: transform 0.4s var(--spring), background 0.2s;
+        }
+
         .log-item:hover {
-            background: var(--panel-2);
+            background: rgba(255, 255, 255, 0.025);
         }
 
         .log-item.active {
             background: rgba(255, 255, 255, 0.045);
-            box-shadow: inset 2px 0 0 var(--text-3);
+        }
+
+        .log-item.active::after,
+        .log-item.selected::after {
+            transform: scaleY(1);
         }
 
         .log-item.selected {
-            background: var(--accent-soft);
-            box-shadow: inset 2px 0 0 var(--accent);
+            background: rgba(255, 255, 255, 0.04);
+            box-shadow: inset 0 0 0 1px var(--line);
+            cursor: default;
         }
 
-        .log-item.empty {
+        .log-item.selected::after {
+            background: var(--accent);
+            box-shadow: 0 0 10px rgba(229, 72, 77, 0.7);
+        }
+
+        .log-item.enter {
+            animation: blurIn 0.55s var(--ease-out) both;
+            animation-delay: calc(var(--i, 0) * 24ms);
+        }
+
+        .log-item.pop {
+            animation: blurIn 0.3s var(--ease-out) both;
+        }
+
+        .log-item.empty,
+        .log-item.filter-empty {
             justify-content: center;
             padding: 40px 16px;
             color: var(--text-3);
             cursor: default;
+            text-align: center;
         }
 
-        .log-item.empty:hover {
+        .log-item.empty:hover,
+        .log-item.filter-empty:hover {
             background: transparent;
+        }
+
+        .empty-card {
+            display: grid;
+            justify-items: center;
+            gap: 6px;
+            max-width: 300px;
+            animation: blurIn 0.6s var(--ease-out) both;
+        }
+
+        .empty-card svg {
+            width: 30px;
+            height: 30px;
+            margin-bottom: 4px;
+            color: var(--text-3);
+            animation: float 3.2s ease-in-out infinite;
+        }
+
+        .empty-card b {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        @keyframes float {
+            50% { transform: translateY(-4px); }
+        }
+
+        .chev {
+            position: absolute;
+            right: 8px;
+            top: 10px;
+            width: 16px;
+            height: 16px;
+            color: var(--text-3);
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.4s var(--spring);
+        }
+
+        .chev svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .log-item:hover .chev,
+        .log-item:focus-visible .chev,
+        .log-item.selected .chev {
+            opacity: 1;
+        }
+
+        .log-item.selected .chev {
+            transform: rotate(180deg);
+            color: var(--text);
+        }
+
+        .nav-divider {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 10px 4px 4px;
+            color: var(--text-3);
+            font-size: 11px;
+            animation: blurIn 0.5s var(--ease-out) both;
+        }
+
+        .nav-divider::before,
+        .nav-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--line-2));
+        }
+
+        .nav-divider::after {
+            background: linear-gradient(90deg, var(--line-2), transparent);
+        }
+
+        .nav-divider span {
+            max-width: 75%;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            font-family: var(--mono);
+        }
+
+        .nav-divider span::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            margin-right: 6px;
+            border-radius: 50%;
+            background: var(--info);
+            vertical-align: 1px;
         }
 
         .log-time {
@@ -2791,6 +5620,11 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             font-size: 11.5px;
             color: var(--text-3);
             font-variant-numeric: tabular-nums;
+            transition: color 0.2s;
+        }
+
+        .log-item.active .log-time {
+            color: var(--text);
         }
 
         .log-content {
@@ -2802,11 +5636,14 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             display: flex;
             align-items: center;
             gap: 6px;
+            min-width: 0;
         }
 
         .log-method,
         .log-status {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
             padding: 1px 6px;
             border-radius: 5px;
             font-family: var(--mono);
@@ -2819,10 +5656,65 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
         .method-POST { background: rgba(112, 184, 255, 0.12); color: var(--info); }
         .method-PUT, .method-PATCH { background: rgba(241, 161, 13, 0.12); color: var(--warn); }
         .method-DELETE { background: var(--accent-soft); color: var(--accent); }
+        .method-OPTIONS { background: transparent; color: var(--text-3); box-shadow: inset 0 0 0 1px var(--line-2); }
 
         .status-success { background: rgba(61, 214, 140, 0.12); color: var(--ok); }
+        .status-redirect { background: rgba(112, 184, 255, 0.12); color: var(--info); }
         .status-error { background: var(--accent-soft); color: #ff8589; }
         .status-pending { background: rgba(241, 161, 13, 0.12); color: var(--warn); }
+
+        .status-pending::before {
+            content: '';
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: blink 1.2s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0.25; }
+        }
+
+        .log-perf {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            margin-left: auto;
+            min-width: 0;
+            font-family: var(--mono);
+            font-size: 10.5px;
+            color: var(--text-3);
+            white-space: nowrap;
+        }
+
+        .perf-bar {
+            flex: none;
+            width: 42px;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--panel-2);
+            overflow: hidden;
+        }
+
+        .perf-bar i {
+            display: block;
+            height: 100%;
+            width: calc(var(--w) * 100%);
+            min-width: 2px;
+            border-radius: inherit;
+            background: var(--ok);
+            transform-origin: left;
+            animation: growIn 0.9s var(--ease-out) 0.3s both;
+        }
+
+        .perf-bar .speed-ok { background: #9bd65f; }
+        .perf-bar .speed-slow { background: var(--warn); }
+        .perf-bar .speed-crawl { background: var(--accent); }
+
+        @keyframes growIn {
+            from { transform: scaleX(0); }
+        }
 
         .log-url {
             margin-top: 5px;
@@ -2841,6 +5733,10 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             color: var(--text-3);
         }
 
+        .net-row[data-opt="1"] .log-url {
+            color: var(--text-2);
+        }
+
         .log-item.selected .log-url {
             display: block;
             -webkit-line-clamp: unset;
@@ -2855,6 +5751,12 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             place-items: center;
             background: var(--panel-2);
             color: var(--text-2);
+            transition: transform 0.4s var(--bounce);
+        }
+
+        .log-item:hover .interaction-icon,
+        .log-item.active .interaction-icon {
+            transform: scale(1.08) rotate(-6deg);
         }
 
         .interaction-icon svg {
@@ -2867,15 +5769,39 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             color: var(--accent);
         }
 
+        .icon-input,
+        .icon-change {
+            background: rgba(61, 214, 140, 0.1);
+            color: var(--ok);
+        }
+
+        .icon-scroll {
+            background: rgba(112, 184, 255, 0.1);
+            color: var(--info);
+        }
+
         .interaction-details {
             flex: 1;
             min-width: 0;
         }
 
         .interaction-type {
+            display: flex;
+            align-items: center;
+            gap: 6px;
             font-size: 12.5px;
             font-weight: 600;
             color: var(--text);
+        }
+
+        .times {
+            padding: 0 5px;
+            border-radius: 4px;
+            background: var(--panel-2);
+            color: var(--text-3);
+            font-family: var(--mono);
+            font-size: 10.5px;
+            font-weight: 500;
         }
 
         .interaction-info {
@@ -2891,8 +5817,113 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             color: var(--text-3);
         }
 
+        /* Expandable details inside a row */
+        .row-slot {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.42s var(--ease-out);
+        }
+
+        .row-slot > * {
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .log-item.selected .row-slot {
+            grid-template-rows: 1fr;
+        }
+
+        .row-details {
+            cursor: auto;
+            opacity: 0;
+            filter: blur(3px);
+            transform: translateY(-6px);
+            transition: opacity 0.3s var(--ease-out), transform 0.42s var(--ease-out), filter 0.3s var(--ease-out);
+        }
+
+        .log-item.selected .row-details {
+            opacity: 1;
+            filter: none;
+            transform: none;
+        }
+
+        .snap-thumb {
+            flex: none;
+            width: 72px;
+            margin-top: 2px;
+            transition: transform 0.4s var(--spring);
+        }
+
+        .log-item:hover .snap-thumb {
+            transform: scale(1.06) rotate(-1.5deg);
+        }
+
+        .snap-path {
+            min-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            color: var(--text-3);
+            font-family: var(--mono);
+            font-size: 11.5px;
+            font-weight: 500;
+        }
+
+        .snap-hint {
+            margin: 4px 6px 8px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--k-select) 8%, transparent);
+            color: var(--text-2);
+            font-size: 12px;
+        }
+
+        /* "Back to now" floats up when you scroll away while following. */
+        .back-now {
+            position: absolute;
+            left: 50%;
+            bottom: 16px;
+            z-index: 5;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 32px;
+            padding: 0 14px;
+            border: 1px solid var(--line-2);
+            border-radius: 999px;
+            background: rgba(27, 27, 31, 0.9);
+            backdrop-filter: blur(10px);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 550;
+            cursor: pointer;
+            box-shadow: 0 12px 28px -10px rgba(0, 0, 0, 0.8);
+            opacity: 0;
+            visibility: hidden;
+            transform: translate(-50%, 16px) scale(0.94);
+            transition: opacity 0.2s var(--ease-out), transform 0.45s var(--bounce), visibility 0s 0.45s;
+        }
+
+        .back-now.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, 0);
+            transition: opacity 0.2s var(--ease-out), transform 0.45s var(--bounce), visibility 0s;
+        }
+
+        .back-now svg {
+            width: 14px;
+            height: 14px;
+            animation: nudge 1.4s ease-in-out infinite;
+        }
+
+        @keyframes nudge {
+            50% { transform: translateY(2px); }
+        }
+
         ::-webkit-scrollbar {
             width: 10px;
+            height: 10px;
         }
 
         ::-webkit-scrollbar-thumb {
@@ -2910,16 +5941,25 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             to { opacity: 1; transform: none; }
         }
 
+        @keyframes fadeIn {
+            from { opacity: 0; }
+        }
+
+        @keyframes blurIn {
+            from { opacity: 0; transform: translateY(6px); filter: blur(5px); }
+        }
+
         @media (max-width: 900px) {
             body { overflow: auto; }
             .app { height: auto; }
             .video-layout { grid-template-columns: minmax(0, 1fr); }
-            .data-section { min-width: 0; }
-            .data-tabs { overflow-x: auto; }
+            .data-tabs { overflow-x: auto; scrollbar-width: none; }
             .data-tab { padding-left: 8px; padding-right: 8px; }
             .video-container { aspect-ratio: 16 / 10; flex: none; }
-            .data-section { border-left: none; border-top: 1px solid var(--line); height: 70vh; }
+            .data-section { border-left: none; border-top: 1px solid var(--line); height: 80vh; }
             .chips { display: none; }
+            .shortcuts { display: none; }
+            .controls-row { gap: 10px; }
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -2936,21 +5976,22 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
         <header class="topbar">
             <span class="mark" aria-hidden="true"><span></span></span>
             <div class="title">
-                <h1>Session replay</h1>
+                <h1><span style="--i:0">Session</span> <span style="--i:1">replay</span></h1>
                 <p>${host ? escapeHtml(host) + ' · ' : ''}Recorded ${escapeHtml(recordedAt)}</p>
             </div>
             <div class="chips">
-                <span class="chip"><b>${formatDuration(duration)}</b> duration</span>
-                <span class="chip"><b>${data.summary.totalNetworkRequests}</b> requests</span>
-                <span class="chip"><b>${data.summary.totalInteractions}</b> interactions</span>
-                ${data.extensionVersion ? `<span class="chip version">v${escapeHtml(data.extensionVersion)}</span>` : ''}
+                <span class="chip" style="--i:0"><b>${formatDuration(duration)}</b> duration</span>
+                <span class="chip" style="--i:1"><b data-tick>${escapeHtml(summary.totalNetworkRequests != null ? summary.totalNetworkRequests : networkLogs.length)}</b> requests</span>
+                <span class="chip" style="--i:2"><b data-tick>${escapeHtml(summary.totalInteractions != null ? summary.totalInteractions : interactionLogs.length)}</b> interactions</span>
+                ${snaps.length ? `<span class="chip" style="--i:3"><b data-tick>${snaps.length}</b> snapshot${snaps.length === 1 ? '' : 's'}</span>` : ''}
+                ${data.extensionVersion ? `<span class="chip version" style="--i:4">v${escapeHtml(data.extensionVersion)}</span>` : ''}
             </div>
         </header>
 
         <main class="video-layout">
             <section class="video-section" aria-label="Recording">
                 <div class="video-container" id="videoContainer">
-                    ${videoSrc ? `<video id="videoPlayer" src="${videoSrc}" playsinline aria-label="Screen recording of the session"></video><div class="click-layer" id="clickLayer"></div>` : `
+                    ${videoSrc ? `<video id="videoPlayer" src="${escapeHtml(videoSrc)}" playsinline aria-label="Screen recording of the session"></video><div class="click-layer" id="clickLayer"></div><div class="xray-layer" id="xrayLayer" hidden></div>` : `
                     <div class="video-placeholder">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <rect x="2.5" y="5.5" width="13" height="13" rx="2.5"/>
@@ -2965,14 +6006,18 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
                 ${videoSrc ? `
                 <div class="video-controls">
                     <div class="controls-row">
-                        <button class="play-btn" id="playBtn" aria-label="Play">
-                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 001.5.86l12.5-7.5a1 1 0 000-1.72L8.5 3.64A1 1 0 007 4.5z"/></svg>
+                        <button class="play-btn" id="playBtn" aria-label="Play" data-ripple>
+                            <svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle class="ring-track" cx="22" cy="22" r="21"/><circle class="ring-fill" id="playRing" cx="22" cy="22" r="21" pathLength="100"/></svg>
+                            <svg class="ic ic-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 001.5.86l12.5-7.5a1 1 0 000-1.72L8.5 3.64A1 1 0 007 4.5z"/></svg>
+                            <svg class="ic ic-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5.5" y="4" width="4.5" height="16" rx="1.2"/><rect x="14" y="4" width="4.5" height="16" rx="1.2"/></svg>
                         </button>
                         <div class="time-display" id="timeDisplay" aria-hidden="true">00:00 / 00:00</div>
                         <div class="timeline-slider" id="timelineSlider" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+                            <div class="timeline-ghost" id="timelineGhost"></div>
                             <div class="timeline-progress" id="timelineProgress" style="width: 0%">
                                 <div class="timeline-handle"></div>
                             </div>
+                            <div class="scrub-tip" id="scrubTip" aria-hidden="true"></div>
                         </div>
                         <select class="speed-control" id="speedControl" aria-label="Playback speed">
                             <option value="0.5">0.5×</option>
@@ -2981,7 +6026,7 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
                             <option value="2">2×</option>
                         </select>
                     </div>
-                    <p class="shortcuts"><kbd>Space</kbd> play / pause · <kbd>←</kbd> <kbd>→</kbd> 5 s on the timeline · click a row to jump to it</p>
+                    <p class="shortcuts"><kbd>Space</kbd> play / pause · <kbd>←</kbd> <kbd>→</kbd> 5 s · <kbd>/</kbd> filter · <kbd>F</kbd> follow · click a row to jump to it</p>
                 </div>
                 ` : ''}
             </section>
@@ -2989,269 +6034,47 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             <aside class="data-section" aria-label="Captured events">
                 <div class="data-header">
                     <div class="data-tabs" role="tablist" aria-label="Event type">
-                        <button class="data-tab active" data-tab="network" role="tab" id="tab-network" aria-controls="networkList" aria-selected="true">Network <span class="tab-count">${(data.networkLogs || []).length}</span></button>
-                        <button class="data-tab" data-tab="interactions" role="tab" id="tab-interactions" aria-controls="interactionsList" aria-selected="false" tabindex="-1">Interactions <span class="tab-count">${(data.interactionLogs || []).length}</span></button>
-                        <button class="data-tab" data-tab="snapshots" role="tab" id="tab-snapshots" aria-controls="snapshotsList" aria-selected="false" tabindex="-1">Snapshots <span class="tab-count">${snapshotCount}</span></button>
+                        <button class="data-tab active" data-tab="network" role="tab" id="tab-network" aria-controls="networkList" aria-selected="true" data-ripple>Network <span class="tab-count">${networkLogs.length}</span></button>
+                        <button class="data-tab" data-tab="interactions" role="tab" id="tab-interactions" aria-controls="interactionsList" aria-selected="false" tabindex="-1" data-ripple>Interactions <span class="tab-count">${interactionLogs.length}</span></button>
+                        <button class="data-tab" data-tab="snapshots" role="tab" id="tab-snapshots" aria-controls="snapshotsList" aria-selected="false" tabindex="-1" data-ripple>Snapshots <span class="tab-count">${snaps.length}</span></button>
+                        <span class="tab-glider" id="tabGlider" aria-hidden="true"></span>
                     </div>
                 </div>
 
-                <div class="data-content">
+                <div class="panel-tools">
+                    <label class="search">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.25"/><path d="M10.25 10.25L13.5 13.5"/></svg>
+                        <input id="logSearch" type="search" placeholder="Filter requests by URL, method or status" aria-label="Filter the list" autocomplete="off" spellcheck="false">
+                        <kbd aria-hidden="true">/</kbd>
+                    </label>
+                    ${videoSrc ? `<button class="follow-btn" id="followBtn" type="button" aria-pressed="true" data-ripple title="Keep the current moment in view while the video plays (F)"><span class="follow-dot" aria-hidden="true"></span>Follow</button>` : ''}
+                </div>
+                <div class="chip-row">
+                    ${networkChips(net)}
+                    ${interactionChips(ixRows)}
+                    <div class="filter-chips" id="chips-snapshots" hidden><p class="chip-hint">${snaps.length ? (videoSrc ? 'Open a snapshot to outline its elements on the video' : 'Open a snapshot to see its elements') : 'Snapshots list what was clickable on screen'}</p></div>
+                    <span class="result-count" id="resultCount" aria-live="polite"></span>
+                </div>
+
+                <div class="data-content" id="dataContent">
+                    <div class="scroll-progress" aria-hidden="true"></div>
                     <ul class="log-list" id="networkList" role="tabpanel" aria-labelledby="tab-network">
-                        ${generateNetworkList(data.networkLogs, startTime)}
+                        ${tight(generateNetworkList(networkLogs, net, startTime))}
                     </ul>
                     <ul class="log-list" id="interactionsList" role="tabpanel" aria-labelledby="tab-interactions" style="display: none;">
-                        ${generateInteractionsList(data.interactionLogs, startTime)}
+                        ${tight(generateInteractionsList(ixRows, startTime))}
                     </ul>
                     <ul class="log-list" id="snapshotsList" role="tabpanel" aria-labelledby="tab-snapshots" style="display: none;">
-                        ${generateSnapshotsList(data.elementSnapshots, startTime)}
+                        ${tight(generateSnapshotsList(snaps, elementSnapshots, startTime, !!videoSrc))}
                     </ul>
                 </div>
+                ${videoSrc ? `<button class="back-now" id="backNow" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v9M4.5 8.5L8 12l3.5-3.5"/></svg>Back to now</button>` : ''}
             </aside>
         </main>
     </div>
 
     <script>
-        const startTime = ${startTime};
-        const hasVideo = ${!!videoSrc};
-        const fallbackDuration = ${duration / 1000};
-        const clicks = ${JSON.stringify(clicks).replace(/</g, '\\u003c')};
-        let seekVideo = null;
-
-        // Tab switching (click, Space/Enter, or arrow keys inside the tab list).
-        const tabs = Array.from(document.querySelectorAll('.data-tab'));
-        function selectTab(tab) {
-            tabs.forEach(t => {
-                const on = t === tab;
-                t.classList.toggle('active', on);
-                t.setAttribute('aria-selected', String(on));
-                t.tabIndex = on ? 0 : -1;
-                document.getElementById(t.dataset.tab + 'List').style.display = on ? 'block' : 'none';
-            });
-        }
-        tabs.forEach((tab, i) => {
-            tab.addEventListener('click', () => selectTab(tab));
-            tab.addEventListener('keydown', (e) => {
-                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-                const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
-                selectTab(next);
-                next.focus();
-            });
-        });
-
-        // Clicking a row selects it (expanding its full text) and jumps the video to that moment.
-        document.querySelectorAll('.log-item[data-timestamp]').forEach(item => {
-            item.addEventListener('click', () => {
-                document.querySelectorAll('.log-item.selected').forEach(el => el.classList.remove('selected'));
-                item.classList.add('selected');
-                if (seekVideo) seekVideo((Number(item.dataset.timestamp) - startTime) / 1000);
-            });
-        });
-
-        if (hasVideo) {
-            const video = document.getElementById('videoPlayer');
-            const playBtn = document.getElementById('playBtn');
-            const timeDisplay = document.getElementById('timeDisplay');
-            const timelineSlider = document.getElementById('timelineSlider');
-            const timelineProgress = document.getElementById('timelineProgress');
-            const speedControl = document.getElementById('speedControl');
-            const clickLayer = document.getElementById('clickLayer');
-            const PLAY_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 001.5.86l12.5-7.5a1 1 0 000-1.72L8.5 3.64A1 1 0 007 4.5z"/></svg>';
-            const PAUSE_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5.5" y="4" width="4.5" height="16" rx="1.2"/><rect x="14" y="4" width="4.5" height="16" rx="1.2"/></svg>';
-            const CLICK_SHOW_SECONDS = 1.2;
-            const logItems = Array.from(document.querySelectorAll('.log-item[data-timestamp]'))
-                .map(el => ({ el, timestamp: Number(el.dataset.timestamp) }));
-            const markers = clicks.map(() => {
-                const marker = document.createElement('div');
-                marker.className = 'click-marker';
-                clickLayer.appendChild(marker);
-                return marker;
-            });
-            let durationPending = false;
-            let pendingSeek = null;
-            let lastHighlightBucket = -1;
-
-            function getDuration() {
-                return isFinite(video.duration) && video.duration > 0 ? video.duration : fallbackDuration;
-            }
-
-            function currentPosition() {
-                return durationPending ? (pendingSeek || 0) : video.currentTime;
-            }
-
-            // MediaRecorder WebM files carry no duration; seeking past the end makes the browser work it out.
-            function onMetadata() {
-                if (isFinite(video.duration)) {
-                    renderTicks();
-                    render();
-                    return;
-                }
-                durationPending = true;
-                video.addEventListener('durationchange', function resolved() {
-                    if (!isFinite(video.duration)) return;
-                    video.removeEventListener('durationchange', resolved);
-                    // Let the seek to the end finish first; overlapping seeks can leave the player off 0.
-                    const finish = () => {
-                        durationPending = false;
-                        video.currentTime = pendingSeek || 0;
-                        pendingSeek = null;
-                        renderTicks();
-                        render();
-                    };
-                    if (video.seeking) video.addEventListener('seeked', finish, { once: true });
-                    else finish();
-                });
-                video.currentTime = 1e101;
-            }
-            if (video.readyState >= 1) onMetadata();
-            else video.addEventListener('loadedmetadata', onMetadata, { once: true });
-
-            function seekTo(seconds) {
-                const target = Math.max(0, Math.min(seconds, getDuration()));
-                if (durationPending) pendingSeek = target;
-                else video.currentTime = target;
-                render();
-            }
-            seekVideo = seekTo;
-
-            function togglePlay() {
-                if (video.paused || video.ended) video.play();
-                else video.pause();
-            }
-
-            playBtn.addEventListener('click', togglePlay);
-            video.addEventListener('click', togglePlay);
-            document.addEventListener('keydown', (e) => {
-                if (e.code !== 'Space' || e.target.closest('button, select, input')) return;
-                e.preventDefault();
-                togglePlay();
-            });
-
-            video.addEventListener('play', () => {
-                playBtn.innerHTML = PAUSE_ICON;
-                playBtn.setAttribute('aria-label', 'Pause');
-                requestAnimationFrame(loop);
-            });
-            video.addEventListener('pause', () => {
-                playBtn.innerHTML = PLAY_ICON;
-                playBtn.setAttribute('aria-label', 'Play');
-                render();
-            });
-            video.addEventListener('seeked', render);
-            window.addEventListener('resize', render);
-
-            // Redraw every frame while playing; timeupdate only fires ~4 times a second.
-            function loop() {
-                render();
-                if (!video.paused && !video.ended) requestAnimationFrame(loop);
-            }
-
-            // Scrubber: click or drag.
-            function seekFromPointer(e) {
-                const rect = timelineSlider.getBoundingClientRect();
-                seekTo(((e.clientX - rect.left) / rect.width) * getDuration());
-            }
-            timelineSlider.addEventListener('pointerdown', (e) => {
-                timelineSlider.setPointerCapture(e.pointerId);
-                seekFromPointer(e);
-            });
-            timelineSlider.addEventListener('pointermove', (e) => {
-                if (timelineSlider.hasPointerCapture(e.pointerId)) seekFromPointer(e);
-            });
-            timelineSlider.addEventListener('keydown', (e) => {
-                const step = { ArrowLeft: -5, ArrowRight: 5, ArrowDown: -5, ArrowUp: 5 }[e.key];
-                if (step) seekTo(currentPosition() + step);
-                else if (e.key === 'Home') seekTo(0);
-                else if (e.key === 'End') seekTo(getDuration());
-                else return;
-                e.preventDefault();
-            });
-
-            // Speed control
-            speedControl.addEventListener('change', (e) => {
-                video.playbackRate = parseFloat(e.target.value);
-            });
-
-            function render() {
-                const current = currentPosition();
-                const total = getDuration();
-                timelineProgress.style.width = (total ? Math.min(100, (current / total) * 100) : 0) + '%';
-                timeDisplay.textContent = formatTime(current) + ' / ' + formatTime(total);
-                timelineSlider.setAttribute('aria-valuemax', String(Math.round(total)));
-                timelineSlider.setAttribute('aria-valuenow', String(Math.round(current)));
-                timelineSlider.setAttribute('aria-valuetext', formatTime(current) + ' of ' + formatTime(total));
-                renderClicks(current);
-                const bucket = Math.floor(current * 4);
-                if (bucket !== lastHighlightBucket) {
-                    lastHighlightBucket = bucket;
-                    highlightCurrentEvents(current * 1000);
-                }
-            }
-
-            function renderTicks() {
-                const total = getDuration();
-                if (!total) return;
-                timelineSlider.querySelectorAll('.click-tick').forEach(tick => tick.remove());
-                clicks.forEach(click => {
-                    const tick = document.createElement('div');
-                    tick.className = 'click-tick';
-                    tick.style.left = Math.max(0, Math.min(100, (click.t / 1000 / total) * 100)) + '%';
-                    timelineSlider.appendChild(tick);
-                });
-            }
-
-            // Where the frame is drawn inside the video element (object-fit: contain).
-            function frameBox() {
-                const vW = video.videoWidth;
-                const vH = video.videoHeight;
-                const scale = Math.min(video.clientWidth / vW, video.clientHeight / vH);
-                return { vW, vH, scale, left: (video.clientWidth - vW * scale) / 2, top: (video.clientHeight - vH * scale) / 2 };
-            }
-
-            // Tab capture letterboxes the tab's viewport into the frame, centered and aspect-preserved.
-            function clickPoint(click, box) {
-                const s = Math.min(box.vW / click.vw, box.vH / click.vh);
-                const fx = (box.vW - click.vw * s) / 2 + click.x * s;
-                const fy = (box.vH - click.vh * s) / 2 + click.y * s;
-                return { x: box.left + fx * box.scale, y: box.top + fy * box.scale };
-            }
-
-            function renderClicks(current) {
-                if (!video.videoWidth) return;
-                const box = frameBox();
-                clicks.forEach((click, i) => {
-                    const marker = markers[i];
-                    const age = current - click.t / 1000;
-                    // Small negative slack so seeking exactly onto a click still shows it.
-                    if (age < -0.15 || age > CLICK_SHOW_SECONDS) {
-                        marker.style.display = 'none';
-                        return;
-                    }
-                    const point = clickPoint(click, box);
-                    const progress = Math.max(0, age) / CLICK_SHOW_SECONDS;
-                    marker.style.display = 'block';
-                    marker.style.left = point.x + 'px';
-                    marker.style.top = point.y + 'px';
-                    marker.style.opacity = String(1 - progress * 0.85);
-                    marker.style.transform = 'scale(' + (0.7 + progress * 0.6) + ')';
-                });
-            }
-
-            function formatTime(seconds) {
-                if (!isFinite(seconds)) seconds = 0;
-                const mins = Math.floor(seconds / 60);
-                const secs = Math.floor(seconds % 60);
-                return mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
-            }
-
-            function highlightCurrentEvents(currentTimeMs) {
-                const currentTimestamp = startTime + currentTimeMs;
-                logItems.forEach(({ el, timestamp }) => {
-                    el.classList.toggle('active', Math.abs(timestamp - currentTimestamp) < 1000);
-                });
-            }
-
-            render();
-        }
+        (${replayApp})(${embedJson(cfg)}, (${exportKit})());
     </script>
 </body>
 </html>`;
@@ -3270,39 +6093,88 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
         }
     }
 
-    function emptyRow(text) {
-        return `<li class="log-item empty">${text}</li>`;
+    // Row templates are indented for reading; hundreds of rows don't need that whitespace in the file.
+    function tight(html) {
+        return html.replace(/>\s+</g, '><');
     }
 
-    function generateNetworkList(logs, startTime) {
-        if (!logs || logs.length === 0) return emptyRow('No network requests recorded');
+    function emptyRow(icon, title, text) {
+        return `<li class="log-item empty"><div class="empty-card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg><b>${title}</b><span>${text}</span></div></li>`;
+    }
 
-        return logs.map(log => {
+    function chipGroup(id, label, chips, extra) {
+        const buttons = chips.filter(c => c.f === 'all' || c.n > 0).map(c =>
+            `<button class="fchip${c.f === 'err' ? ' err' : ''}" type="button" data-f="${c.f}" aria-pressed="${c.f === 'all'}" data-ripple>${c.label} <span>${c.n}</span></button>`).join('');
+        return `<div class="filter-chips" id="${id}" role="group" aria-label="${label}"${id === 'chips-network' ? '' : ' hidden'}><span class="chip-glider" aria-hidden="true"></span>${buttons}${extra || ''}</div>`;
+    }
+
+    function networkChips(models) {
+        const count = test => models.filter(test).length;
+        const preflight = models.filter(m => m.method === 'OPTIONS').length;
+        return chipGroup('chips-network', 'Request type', [
+            { f: 'all', label: 'All', n: models.length },
+            { f: 'api', label: 'API', n: count(m => m.kind === 'api') },
+            { f: 'doc', label: 'Pages', n: count(m => m.kind === 'doc') },
+            { f: 'code', label: 'JS & CSS', n: count(m => m.kind === 'code') },
+            { f: 'media', label: 'Media', n: count(m => m.kind === 'media') },
+            { f: 'err', label: 'Errors', n: count(m => m.err) },
+        ], preflight ? `<button class="fchip toggle" type="button" data-toggle="opt" aria-pressed="false" data-ripple title="Hide CORS preflight (OPTIONS) requests">Hide preflight <span>${preflight}</span></button>` : '');
+    }
+
+    function interactionChips(rows) {
+        const count = kind => rows.filter(r => interactionKind(r.type) === kind).length;
+        return chipGroup('chips-interactions', 'Interaction type', [
+            { f: 'all', label: 'All', n: rows.length },
+            { f: 'click', label: 'Clicks', n: count('click') },
+            { f: 'input', label: 'Typing', n: count('input') },
+            { f: 'scroll', label: 'Scrolls', n: count('scroll') },
+            { f: 'drag', label: 'Drags', n: count('drag') },
+            { f: 'other', label: 'Other', n: count('other') },
+        ]);
+    }
+
+    function generateNetworkList(logs, models, startTime) {
+        if (!logs || logs.length === 0) {
+            return emptyRow('<path d="M3 12h4l3-8 4 16 3-8h4"/>', 'No network requests', 'Requests the page makes while recording show up here.');
+        }
+        const slowest = models.reduce((max, m) => Math.max(max, m.ms || 0), 1);
+
+        return logs.map((log, i) => {
+            const m = models[i];
             const relativeTime = ((log.timestamp - startTime) / 1000).toFixed(1);
-            const method = escapeHtml(log.method || 'GET');
-            const rawUrl = log.url || '';
+            const method = escapeHtml(m.method);
+            const rawUrl = m.url;
             const host = hostOf(rawUrl);
             const hostEnd = host ? rawUrl.indexOf(host) + host.length : 0;
-            const status = log.response ? log.response.status : 'pending';
-            const statusClass = status >= 200 && status < 300 ? 'status-success' : (status === 'pending' ? 'status-pending' : 'status-error');
+            const status = m.status;
+            const statusClass = typeof status === 'number'
+                ? (status < 300 ? 'status-success' : status < 400 ? 'status-redirect' : 'status-error')
+                : (status === 'pending' ? 'status-pending' : 'status-error');
+            const speed = m.ms == null ? '' : m.ms < 300 ? '' : m.ms < 1000 ? 'speed-ok' : m.ms < 3000 ? 'speed-slow' : 'speed-crawl';
+            const perf = [m.msText, m.sizeText].filter(Boolean).join(' · ');
 
             return `
-                <li class="log-item" data-timestamp="${log.timestamp}">
+                <li class="log-item net-row" data-timestamp="${log.timestamp}" data-i="${i}" data-k="${m.kind}" data-err="${m.err ? 1 : 0}" data-opt="${m.method === 'OPTIONS' ? 1 : 0}" tabindex="0" aria-expanded="false">
                     <div class="log-time">${relativeTime}s</div>
                     <div class="log-content">
                         <div class="log-meta">
                             <span class="log-method method-${method}">${method}</span>
                             <span class="log-status ${statusClass}">${escapeHtml(status)}</span>
+                            ${perf ? `<span class="log-perf">${m.ms != null ? `<span class="perf-bar"><i class="${speed}" style="--w:${Math.sqrt(m.ms / slowest).toFixed(3)}"></i></span>` : ''}${escapeHtml(perf)}</span>` : ''}
                         </div>
                         <div class="log-url" title="${escapeHtml(rawUrl)}"><span class="url-host">${escapeHtml(rawUrl.slice(0, hostEnd))}</span>${escapeHtml(rawUrl.slice(hostEnd))}</div>
+                        <div class="row-slot"></div>
                     </div>
+                    ${chevron}
                 </li>
             `;
-        }).join('');
+        }).join('') + filterEmpty;
     }
 
-    function generateInteractionsList(logs, startTime) {
-        if (!logs || logs.length === 0) return emptyRow('No interactions recorded');
+    function generateInteractionsList(rows, startTime) {
+        if (!rows || rows.length === 0) {
+            return emptyRow('<path d="M4 3l6.5 16 2.3-6.7L19.5 10 4 3z"/>', 'No interactions', 'Clicks, typing and scrolling on the page show up here.');
+        }
 
         const ICONS = {
             click: '<path d="M4 3l6.5 16 2.3-6.7L19.5 10 4 3z"/>',
@@ -3312,54 +6184,88 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             change: '<rect x="3" y="7" width="18" height="10" rx="5"/><circle cx="16" cy="12" r="2.5"/>'
         };
 
-        return logs.map(log => {
-            const relativeTime = ((log.timestamp - startTime) / 1000).toFixed(1);
-            const type = log.type || 'unknown';
-            const label = type.charAt(0).toUpperCase() + type.slice(1);
+        let lastPage = null;
+        return rows.map((row, i) => {
+            const log = row.log;
+            const relativeTime = ((row.start - startTime) / 1000).toFixed(1);
+            const type = row.type;
             const icon = ICONS[type] || ICONS.input;
-
-            let position = '';
-            if (log.coordinates) {
-                position = `(${log.coordinates.clientX}, ${log.coordinates.clientY})`;
-            } else if (log.scrollPosition) {
-                position = `to (${log.scrollPosition.x}, ${log.scrollPosition.y})`;
-            }
             const element = log.element || null;
-            const text = element && element.text ? element.text.replace(/\s+/g, ' ').trim().slice(0, 60) : '';
+            const text = elementLabel(element).slice(0, 60);
             const tag = element && element.tagName ? `<code>${escapeHtml(String(element.tagName).toLowerCase())}</code>` : '';
             const target = [tag, text && escapeHtml(`“${text}”`)].filter(Boolean).join(' ');
-            const details = [target, position && `<code>${escapeHtml(position)}</code>`].filter(Boolean).join(' · ');
 
-            return `
-                <li class="log-item" data-timestamp="${log.timestamp}">
+            let label = type.charAt(0).toUpperCase() + type.slice(1);
+            let position = '';
+            if (type === 'click') {
+                label = 'Clicked';
+                if (log.coordinates) position = `(${log.coordinates.clientX}, ${log.coordinates.clientY})`;
+            } else if (type === 'input') {
+                label = 'Typed';
+                position = `${row.last.valueLength || 0} chars`;
+            } else if (type === 'change') {
+                label = typeof log.value === 'boolean' ? (log.value ? 'Checked' : 'Unchecked') : 'Changed';
+            } else if (type === 'drag') {
+                label = 'Dragged';
+                if (log.distance) position = `${Math.round(log.distance)} px`;
+            } else if (type === 'scroll') {
+                const dy = row.from && row.to ? row.to.y - row.from.y : 0;
+                label = dy > 0 ? 'Scrolled down' : dy < 0 ? 'Scrolled up' : 'Scrolled';
+                if (row.to) position = row.count > 1 && row.from ? `y ${Math.round(row.from.y)} → ${Math.round(row.to.y)}` : `to (${row.to.x}, ${row.to.y})`;
+            } else if (log.coordinates) {
+                position = `(${log.coordinates.clientX}, ${log.coordinates.clientY})`;
+            }
+            const details = [type === 'scroll' ? '' : target, position && `<code>${escapeHtml(position)}</code>`].filter(Boolean).join(' · ');
+
+            const page = pageKey(row.url);
+            const divider = page && page !== lastPage
+                ? `<li class="nav-divider" aria-hidden="true"><span>${escapeHtml(pathOf(row.url))}</span></li>`
+                : '';
+            if (page) lastPage = page;
+
+            return `${divider}
+                <li class="log-item ix-row" data-timestamp="${row.start}" data-end="${row.end}" data-i="${i}" data-k="${interactionKind(type)}" tabindex="0" aria-expanded="false">
                     <div class="log-time">${relativeTime}s</div>
                     <div class="interaction-icon icon-${escapeHtml(type)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg></div>
                     <div class="interaction-details">
-                        <div class="interaction-type">${escapeHtml(label)}</div>
+                        <div class="interaction-type">${escapeHtml(label)}${row.count > 1 ? `<span class="times">×${row.count}</span>` : ''}</div>
                         ${details ? `<div class="interaction-info">${details}</div>` : ''}
+                        <div class="row-slot"></div>
                     </div>
+                    ${chevron}
                 </li>
             `;
-        }).join('');
+        }).join('') + filterEmpty;
     }
 
-    function generateSnapshotsList(snapshots, startTime) {
-        if (!snapshots || snapshots.length === 0) return emptyRow('No snapshots captured. Use Capture in the popup to add one');
+    function generateSnapshotsList(models, snapshots, startTime, withVideo) {
+        if (!snapshots || snapshots.length === 0) {
+            return emptyRow('<path d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"/><circle cx="12" cy="12" r="3"/>',
+                'No snapshots in this recording',
+                'A snapshot lists every link, button and field on screen at one moment, with selectors you can copy. Press Capture in the popup while recording to take one.');
+        }
 
-        return snapshots.map(snapshot => {
+        const hint = `<li class="snap-hint" aria-hidden="true">Each snapshot is what someone could click at that moment. ${withVideo ? 'Open one to outline its elements on the video, then hover the list to find them.' : 'Open one to see its layout and copy selectors.'}</li>`;
+        return hint + snapshots.map((snapshot, i) => {
+            const m = models[i];
             const relativeTime = ((snapshot.timestamp - startTime) / 1000).toFixed(1);
-            const elementCount = snapshot.elements ? snapshot.elements.length : 0;
+            const chips = Object.keys(KIND_LABELS).filter(k => m.counts[k]).map(k =>
+                `<span class="kchip k-${k}"><i></i>${m.counts[k]} ${KIND_LABELS[k].toLowerCase()}</span>`).join('');
 
             return `
-                <li class="log-item" data-timestamp="${snapshot.timestamp}">
+                <li class="log-item snap-row" data-timestamp="${snapshot.timestamp}" data-i="${i}" data-k="snapshot" tabindex="0" aria-expanded="false">
                     <div class="log-time">${relativeTime}s</div>
+                    <div class="snap-thumb" data-i="${i}" aria-hidden="true"></div>
                     <div class="log-content">
-                        <div class="interaction-type">Element snapshot</div>
-                        <div class="interaction-info">${elementCount} elements captured</div>
+                        <div class="interaction-type">Snapshot <span class="snap-path">${escapeHtml(pathOf(m.url))}</span></div>
+                        <div class="interaction-info">${m.inView} in view · ${m.els.length} captured</div>
+                        <div class="kchips">${chips}</div>
+                        <div class="row-slot"></div>
                     </div>
+                    ${chevron}
                 </li>
             `;
-        }).join('');
+        }).join('') + filterEmpty;
     }
 }
 
