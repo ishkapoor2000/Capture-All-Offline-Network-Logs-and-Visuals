@@ -1096,6 +1096,10 @@ async function exportAllLogs(tabId, mode) {
     }
 }
 
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function generateImprovedTimelineHTML(data) {
     // Process all events
     const allEvents = [];
@@ -1145,8 +1149,53 @@ function generateImprovedTimelineHTML(data) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Capture All Timeline - ${new Date(data.exportDate).toLocaleString()}</title>
+    <meta name="color-scheme" content="light dark">
+    <title>Capture All timeline · ${new Date(data.exportDate).toLocaleString()}</title>
     <style>
+        :root {
+            --bg: #f7f7f8;
+            --panel: #ffffff;
+            --panel-2: #f2f2f4;
+            --line: #e4e4e7;
+            --line-2: #d4d4d8;
+            --text: #18181b;
+            --text-2: #52525b;
+            --text-3: #6b6b74;
+            --accent: #ce2c31;
+            --accent-soft: rgba(206, 44, 49, 0.09);
+            --ok: #18794e;
+            --ok-soft: rgba(24, 121, 78, 0.1);
+            --info: #0d74ce;
+            --info-soft: rgba(13, 116, 206, 0.09);
+            --warn: #a35200;
+            --warn-soft: rgba(241, 161, 13, 0.14);
+            --shadow: 0 1px 2px rgba(24, 24, 27, 0.05), 0 12px 32px -16px rgba(24, 24, 27, 0.16);
+            --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+            --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0c0c0e;
+                --panel: #141417;
+                --panel-2: #1b1b1f;
+                --line: #25252a;
+                --line-2: #34343b;
+                --text: #ececef;
+                --text-2: #b0b0b9;
+                --text-3: #8a8a94;
+                --accent: #ff6369;
+                --accent-soft: rgba(229, 72, 77, 0.14);
+                --ok: #3dd68c;
+                --ok-soft: rgba(61, 214, 140, 0.12);
+                --info: #70b8ff;
+                --info-soft: rgba(112, 184, 255, 0.12);
+                --warn: #f1a10d;
+                --warn-soft: rgba(241, 161, 13, 0.12);
+                --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px -16px rgba(0, 0, 0, 0.7);
+            }
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -1154,189 +1203,291 @@ function generateImprovedTimelineHTML(data) {
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f7fa;
-            color: #1a202c;
+            font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        button, select {
+            font: inherit;
+            color: inherit;
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
         }
 
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-bottom: 1px solid var(--line);
+            background: var(--panel);
+        }
+
+        .header-inner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 16px 24px;
+        }
+
+        .mark {
+            flex: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 9px;
+            background: var(--text);
+            display: grid;
+            place-items: center;
+        }
+
+        .mark span {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 0 3px var(--text);
         }
 
         .header h1 {
-            font-size: 2rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
+            font-size: 16px;
+            font-weight: 650;
+            letter-spacing: -0.01em;
+            line-height: 1.25;
         }
 
         .header p {
-            opacity: 0.9;
+            font-size: 12.5px;
+            color: var(--text-3);
+        }
+
+        .version {
+            margin-left: auto;
+            padding: 3px 8px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--text-3);
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1280px;
             margin: 0 auto;
-            padding: 2rem;
+            padding: 24px;
+        }
+
+        .container > * {
+            animation: rise 0.4s var(--ease) both;
+        }
+
+        .container > :nth-child(2) { animation-delay: 60ms; }
+        .container > :nth-child(3) { animation-delay: 120ms; }
+
+        @keyframes rise {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: none; }
         }
 
         .summary-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
+            grid-template-columns: repeat(4, 1fr);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: var(--panel);
+            overflow: hidden;
+            margin-bottom: 20px;
         }
 
         .summary-card {
-            background: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            text-align: center;
+            padding: 16px 20px;
+        }
+
+        .summary-card + .summary-card {
+            border-left: 1px solid var(--line);
         }
 
         .summary-card h3 {
-            font-size: 2rem;
-            color: #667eea;
-            margin-bottom: 0.5rem;
+            font-size: 26px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            font-variant-numeric: tabular-nums;
+            line-height: 1.2;
         }
 
         .summary-card p {
-            color: #718096;
-            font-size: 0.875rem;
+            font-size: 12.5px;
+            color: var(--text-3);
         }
 
         .timeline-section {
-            background: white;
-            border-radius: 12px;
-            padding: 2rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            margin-bottom: 2rem;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: var(--panel);
+            box-shadow: var(--shadow);
+            padding: 20px;
         }
 
         .timeline-header {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 1.5rem;
+            justify-content: space-between;
+            gap: 16px;
             flex-wrap: wrap;
-            gap: 1rem;
+            margin-bottom: 16px;
         }
 
         .timeline-title {
-            font-size: 1.5rem;
-            font-weight: 600;
+            font-size: 15px;
+            font-weight: 650;
+            letter-spacing: -0.01em;
         }
 
         .playback-controls {
             display: flex;
-            gap: 0.5rem;
             align-items: center;
+            gap: 6px;
         }
 
         .playback-btn {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 32px;
+            padding: 0 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            font-size: 13px;
+            font-weight: 550;
             cursor: pointer;
-            font-size: 0.875rem;
-            font-weight: 500;
-            transition: all 0.2s;
+            transition: background 0.15s var(--ease), border-color 0.15s var(--ease), transform 0.12s var(--ease);
         }
 
-        .playback-btn:hover {
-            background: #5568d3;
-            transform: translateY(-1px);
+        .playback-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .playback-btn:hover:not(:disabled) {
+            background: var(--panel-2);
+            border-color: var(--line-2);
+        }
+
+        .playback-btn:active:not(:disabled) {
+            transform: scale(0.97);
+        }
+
+        .playback-btn.primary {
+            border-color: transparent;
+            background: var(--text);
+            color: var(--panel);
+        }
+
+        .playback-btn.primary:hover:not(:disabled) {
+            background: var(--text);
+            opacity: 0.88;
         }
 
         .playback-btn:disabled {
-            background: #cbd5e0;
+            opacity: 0.4;
             cursor: not-allowed;
-            transform: none;
         }
 
         .speed-selector {
-            padding: 0.5rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            font-size: 0.875rem;
+            height: 32px;
+            padding: 0 8px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            font-size: 13px;
+            cursor: pointer;
         }
 
         .playback-info {
-            background: #edf2f7;
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            text-align: center;
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            margin-bottom: 12px;
         }
 
         .current-time {
-            font-size: 1.5rem;
+            font-family: var(--mono);
+            font-size: 22px;
             font-weight: 600;
-            color: #667eea;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.02em;
+        }
+
+        .total-time {
+            font-size: 13px;
+            color: var(--text-3);
         }
 
         .current-event-card {
-            background: linear-gradient(135deg, #fef5e7 0%, #fdebd0 100%);
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            border-left: 4px solid #f59e0b;
             display: none;
+            margin-bottom: 14px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            background: var(--accent-soft);
+            box-shadow: inset 2px 0 0 var(--accent);
         }
 
         .current-event-card.active {
             display: block;
+            animation: rise 0.25s var(--ease) both;
         }
 
         .current-event-card h4 {
-            color: #92400e;
-            margin-bottom: 0.5rem;
-            font-size: 0.875rem;
+            font-size: 11.5px;
             font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 2px;
         }
 
         .current-event-card .event-summary {
-            color: #78350f;
-            font-size: 0.875rem;
+            font-size: 13px;
+            overflow-wrap: anywhere;
+        }
+
+        .event-time {
+            color: var(--text-3);
+            font-family: var(--mono);
+            font-size: 12px;
         }
 
         .timeline-wrapper {
-            overflow-x: auto;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            background: #f7fafc;
+            border: 1px solid var(--line);
+            border-radius: 10px;
             max-height: 600px;
-            overflow-y: auto;
+            overflow: auto;
+            overscroll-behavior: contain;
         }
 
         .timeline {
-            min-width: 1200px;
             position: relative;
         }
 
         .cursor-track {
             position: sticky;
             top: 0;
-            height: 40px;
-            background: linear-gradient(90deg, #edf2f7 0%, #e2e8f0 100%);
-            border-bottom: 2px solid #cbd5e0;
+            z-index: 10;
             display: flex;
             align-items: center;
-            padding: 0 1rem;
-            z-index: 10;
+            height: 40px;
+            padding: 0 16px;
+            border-bottom: 1px solid var(--line);
+            background: var(--panel);
         }
 
         .track-label {
             width: 150px;
-            font-weight: 600;
-            font-size: 0.875rem;
-            color: #4a5568;
             flex-shrink: 0;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-2);
         }
 
         .track-content {
@@ -1345,235 +1496,282 @@ function generateImprovedTimelineHTML(data) {
             height: 100%;
         }
 
-        .cursor-marker {
-            position: absolute;
-            width: 3px;
-            height: 100%;
-            background: #ef4444;
-            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
-            z-index: 20;
-            transition: left 0.1s linear;
-        }
-
-        .cursor-marker::before {
+        .track-content::before {
             content: '';
             position: absolute;
-            top: -6px;
-            left: -4px;
-            width: 11px;
-            height: 11px;
-            background: #ef4444;
+            left: 0;
+            right: 0;
+            top: 50%;
+            height: 4px;
+            margin-top: -2px;
+            border-radius: 2px;
+            background: var(--panel-2);
+        }
+
+        .cursor-marker {
+            position: absolute;
+            top: 50%;
+            width: 12px;
+            height: 12px;
+            margin: -6px 0 0 -6px;
             border-radius: 50%;
-            border: 2px solid white;
-            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.6);
+            background: var(--accent);
+            box-shadow: 0 0 0 4px var(--accent-soft);
+            transition: left 0.1s linear;
         }
 
         .timeline-track {
             display: flex;
-            align-items: center;
-            min-height: 60px;
-            padding: 0.5rem 1rem;
-            border-bottom: 1px solid #e2e8f0;
+            flex-direction: column;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .timeline-track:last-child {
+            border-bottom: none;
+        }
+
+        .timeline-track .track-label {
+            position: sticky;
+            top: 40px;
+            z-index: 5;
+            width: auto;
+            padding: 8px 16px;
+            border-bottom: 1px solid var(--line);
+            background: var(--panel-2);
+        }
+
+        .track-list {
+            display: flex;
+            flex-direction: column;
+            padding: 4px;
         }
 
         .event-pill {
-            position: absolute;
-            height: 28px;
-            background: #667eea;
-            color: white;
-            border-radius: 14px;
-            padding: 0 12px;
             display: flex;
             align-items: center;
-            font-size: 0.75rem;
-            font-weight: 500;
+            justify-content: space-between;
+            gap: 12px;
+            min-height: 34px;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 7px;
+            background: transparent;
+            text-align: left;
+            font-size: 13px;
             cursor: pointer;
-            transition: all 0.2s;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 180px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background 0.15s var(--ease);
         }
 
         .event-pill:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-            z-index: 5;
-            max-width: none;
+            background: var(--panel-2);
         }
 
-        .event-pill.network {
-            background: linear-gradient(135deg, #10b981, #059669);
+        .event-pill.selected {
+            background: var(--accent-soft);
+            box-shadow: inset 2px 0 0 var(--accent);
         }
 
-        .event-pill.interaction {
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        .pill-main {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
         }
 
-        .event-pill.snapshot {
-            background: linear-gradient(135deg, #f59e0b, #d97706);
+        .pill-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
+
+        .pill-meta {
+            flex: none;
+            font-family: var(--mono);
+            font-size: 11.5px;
+            color: var(--text-3);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .tag {
+            flex: none;
+            padding: 1px 6px;
+            border-radius: 5px;
+            font-family: var(--mono);
+            font-size: 10.5px;
+            font-weight: 600;
+            background: var(--panel-2);
+            color: var(--text-2);
+        }
+
+        .tag.network { background: var(--ok-soft); color: var(--ok); }
+        .tag.interaction { background: var(--info-soft); color: var(--info); }
+        .tag.snapshot { background: var(--warn-soft); color: var(--warn); }
 
         .details-panel {
-            background: white;
-            border-radius: 12px;
-            padding: 2rem;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            margin-top: 2rem;
             display: none;
+            margin-top: 20px;
+            padding: 24px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: var(--panel);
+            box-shadow: var(--shadow);
         }
 
         .details-panel.active {
             display: block;
+            animation: rise 0.3s var(--ease) both;
         }
 
         .details-panel h3 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-bottom: 1.5rem;
-            color: #1a202c;
+            font-size: 15px;
+            font-weight: 650;
+            margin-bottom: 16px;
         }
 
         .details-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 16px;
         }
 
         .detail-section {
-            background: #f7fafc;
-            padding: 1.5rem;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
+            min-width: 0;
+            padding: 16px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: var(--bg);
         }
 
         .detail-section h4 {
-            font-size: 1rem;
+            font-size: 12px;
             font-weight: 600;
-            color: #667eea;
-            margin-bottom: 1rem;
+            color: var(--text-3);
+            margin-bottom: 10px;
         }
 
-        .detail-item {
-            margin-bottom: 0.75rem;
+        .detail-item + .detail-item {
+            margin-top: 10px;
         }
 
         .detail-label {
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: #718096;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.25rem;
+            font-size: 11.5px;
+            color: var(--text-3);
+            margin-bottom: 2px;
         }
 
         .detail-value {
-            font-size: 0.875rem;
-            color: #2d3748;
-            word-break: break-word;
+            font-size: 13px;
+            overflow-wrap: anywhere;
         }
 
         .detail-value pre {
-            background: #edf2f7;
-            padding: 0.75rem;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            overflow-x: auto;
-            max-height: 300px;
-            overflow-y: auto;
+            max-height: 320px;
+            overflow: auto;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            font-family: var(--mono);
+            font-size: 12px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
         }
 
         .status-badge {
             display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
+            padding: 1px 8px;
+            border-radius: 6px;
+            font-family: var(--mono);
+            font-size: 12px;
             font-weight: 600;
         }
 
-        .status-success {
-            background: #d1fae5;
-            color: #065f46;
+        .status-success { background: var(--ok-soft); color: var(--ok); }
+        .status-error { background: var(--accent-soft); color: var(--accent); }
+
+        @media (max-width: 720px) {
+            .summary-grid { grid-template-columns: repeat(2, 1fr); }
+            .summary-card:nth-child(3) { border-left: none; }
+            .summary-card:nth-child(n + 3) { border-top: 1px solid var(--line); }
+            .container { padding: 16px; }
+            .track-label { width: 90px; }
         }
 
-        .status-error {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .response-body {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
-            }
-
-            .timeline-wrapper {
-                max-height: 400px;
-            }
-
-            .details-grid {
-                grid-template-columns: 1fr;
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
             }
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Capture All Timeline</h1>
-        <p>Session recorded on ${new Date(data.exportDate).toLocaleString()}</p>
-    </div>
+    <header class="header">
+        <div class="header-inner">
+            <span class="mark" aria-hidden="true"><span></span></span>
+            <div>
+                <h1>Capture All timeline</h1>
+                <p>Session recorded ${new Date(data.exportDate).toLocaleString()}</p>
+            </div>
+            ${data.extensionVersion ? `<span class="version">v${escapeHtml(data.extensionVersion)}</span>` : ''}
+        </div>
+    </header>
 
-    <div class="container">
-        <div class="summary-grid">
+    <main class="container">
+        <section class="summary-grid" aria-label="Summary">
             <div class="summary-card">
                 <h3>${data.summary.totalNetworkRequests}</h3>
-                <p>Network Requests</p>
+                <p>Network requests</p>
             </div>
             <div class="summary-card">
                 <h3>${data.summary.totalInteractions}</h3>
-                <p>User Interactions</p>
+                <p>Interactions</p>
             </div>
             <div class="summary-card">
                 <h3>${data.summary.totalElementSnapshots}</h3>
-                <p>Element Snapshots</p>
+                <p>Element snapshots</p>
             </div>
             <div class="summary-card">
                 <h3>${formatDuration(duration)}</h3>
-                <p>Session Duration</p>
+                <p>Duration</p>
             </div>
-        </div>
+        </section>
 
-        <div class="timeline-section">
+        <section class="timeline-section" aria-labelledby="timelineTitle">
             <div class="timeline-header">
-                <h2 class="timeline-title">Interactive Timeline</h2>
+                <h2 class="timeline-title" id="timelineTitle">Timeline</h2>
                 <div class="playback-controls">
-                    <select class="speed-selector" id="speedSelector">
-                        <option value="0.5">0.5x</option>
-                        <option value="1" selected>1x</option>
-                        <option value="2">2x</option>
-                        <option value="5">5x</option>
-                        <option value="10">10x</option>
+                    <select class="speed-selector" id="speedSelector" aria-label="Playback speed">
+                        <option value="0.5">0.5×</option>
+                        <option value="1" selected>1×</option>
+                        <option value="2">2×</option>
+                        <option value="5">5×</option>
+                        <option value="10">10×</option>
                     </select>
-                    <button class="playback-btn" id="playBtn">▶ Play</button>
-                    <button class="playback-btn" id="pauseBtn" disabled>⏸ Pause</button>
-                    <button class="playback-btn" id="resetBtn">🔄 Reset</button>
+                    <button class="playback-btn primary" id="playBtn">
+                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 001.5.86l12.5-7.5a1 1 0 000-1.72L8.5 3.64A1 1 0 007 4.5z"/></svg>
+                        Play
+                    </button>
+                    <button class="playback-btn" id="pauseBtn" disabled>
+                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5.5" y="4" width="4.5" height="16" rx="1.2"/><rect x="14" y="4" width="4.5" height="16" rx="1.2"/></svg>
+                        Pause
+                    </button>
+                    <button class="playback-btn" id="resetBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 103-6.7L3 8M3 3v5h5"/></svg>
+                        Reset
+                    </button>
                 </div>
             </div>
 
             <div class="playback-info">
-                <div class="current-time" id="currentTime">00:00.000</div>
-                <div style="font-size: 0.875rem; color: #718096; margin-top: 0.25rem;">
-                    Total: ${formatDuration(duration)}
-                </div>
+                <div class="current-time" id="currentTime" aria-live="off">00:00.000</div>
+                <div class="total-time">of ${formatDuration(duration)}</div>
             </div>
 
-            <div class="current-event-card" id="currentEventCard">
-                <h4>Current Event</h4>
+            <div class="current-event-card" id="currentEventCard" aria-live="polite">
+                <h4>Now</h4>
                 <div class="event-summary" id="currentEventSummary"></div>
             </div>
 
@@ -1588,12 +1786,11 @@ function generateImprovedTimelineHTML(data) {
                     ${generateTimelineTracks(data, startTime, endTime)}
                 </div>
             </div>
-        </div>
+        </section>
 
-        <div class="details-panel" id="detailsPanel">
-            <!-- Event details will be populated here -->
-        </div>
-    </div>
+        <section class="details-panel" id="detailsPanel" aria-live="polite">
+        </section>
+    </main>
 
     <script>
         const captureData = ${JSON.stringify(data, null, 2).replace(/</g, '\\u003c')};
@@ -1617,9 +1814,10 @@ function generateImprovedTimelineHTML(data) {
             allEvents = [];
             
             if (captureData.networkLogs) {
-                captureData.networkLogs.forEach(log => {
+                captureData.networkLogs.forEach((log, sourceIndex) => {
                     allEvents.push({
                         type: 'network',
+                        sourceIndex,
                         timestamp: log.timestamp,
                         data: log
                     });
@@ -1627,9 +1825,10 @@ function generateImprovedTimelineHTML(data) {
             }
             
             if (captureData.interactionLogs) {
-                captureData.interactionLogs.forEach(log => {
+                captureData.interactionLogs.forEach((log, sourceIndex) => {
                     allEvents.push({
                         type: 'interaction',
+                        sourceIndex,
                         timestamp: log.timestamp,
                         data: log
                     });
@@ -1637,9 +1836,10 @@ function generateImprovedTimelineHTML(data) {
             }
             
             if (captureData.elementSnapshots) {
-                captureData.elementSnapshots.forEach(snapshot => {
+                captureData.elementSnapshots.forEach((snapshot, sourceIndex) => {
                     allEvents.push({
                         type: 'snapshot',
+                        sourceIndex,
                         timestamp: snapshot.timestamp,
                         data: snapshot
                     });
@@ -1663,13 +1863,15 @@ function generateImprovedTimelineHTML(data) {
                 playbackSpeed = parseFloat(e.target.value);
             });
 
-            // Add click handlers to all event pills
-            document.querySelectorAll('.event-pill').forEach((pill, index) => {
+            // Pills carry their index within their own type's list; allEvents is sorted by time.
+            document.querySelectorAll('.event-pill').forEach(pill => {
                 pill.addEventListener('click', () => {
-                    const eventIndex = parseInt(pill.dataset.index);
-                    if (eventIndex >= 0 && eventIndex < allEvents.length) {  // Add bounds check
-                        showEventDetails(allEvents[eventIndex]);
-                    }
+                    const sourceIndex = parseInt(pill.dataset.index);
+                    const event = allEvents.find(e => e.type === pill.dataset.type && e.sourceIndex === sourceIndex);
+                    if (!event) return;
+                    document.querySelectorAll('.event-pill.selected').forEach(el => el.classList.remove('selected'));
+                    pill.classList.add('selected');
+                    showEventDetails(event);
                 });
             });
         }
@@ -1772,7 +1974,7 @@ function generateImprovedTimelineHTML(data) {
                 const method = event.data.method || 'GET';
                 const url = truncateUrl(event.data.url);
                 const status = event.data.response ? event.data.response.status : 'pending';
-                summaryText = \`<strong>Network:</strong> \${method} \${url} - Status: \${status} <span style="opacity:0.7">(\${timeStr})</span>\`;
+                summaryText = \`<strong>\${esc(method)}</strong> \${esc(url)} · \${esc(status)} <span class="event-time">\${timeStr}</span>\`;
             } else if (event.type === 'interaction') {
                 const interactionType = event.data.type || 'unknown';
                 let details = '';
@@ -1781,10 +1983,10 @@ function generateImprovedTimelineHTML(data) {
                 } else if (event.data.scrollPosition) {
                     details = \` to (\${event.data.scrollPosition.x}, \${event.data.scrollPosition.y})\`;
                 }
-                summaryText = \`<strong>Interaction:</strong> \${interactionType}\${details} <span style="opacity:0.7">(\${timeStr})</span>\`;
+                summaryText = \`<strong>\${esc(interactionType)}</strong>\${esc(details)} <span class="event-time">\${timeStr}</span>\`;
             } else if (event.type === 'snapshot') {
                 const elementCount = event.data.elements ? event.data.elements.length : 0;
-                summaryText = \`<strong>Snapshot:</strong> \${elementCount} elements captured <span style="opacity:0.7">(\${timeStr})</span>\`;
+                summaryText = \`<strong>Snapshot</strong> \${elementCount} elements captured <span class="event-time">\${timeStr}</span>\`;
             }
             
             summary.innerHTML = summaryText;
@@ -1794,14 +1996,14 @@ function generateImprovedTimelineHTML(data) {
             const panel = document.getElementById('detailsPanel');
             panel.classList.add('active');
             
-            let detailsHTML = '<h3>Event Details</h3><div class="details-grid">';
+            let detailsHTML = '<h3>Event details</h3><div class="details-grid">';
             
             // Common details
             detailsHTML += '<div class="detail-section">';
-            detailsHTML += '<h4>Event Information</h4>';
-            detailsHTML += \`<div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">\${event.type}</div></div>\`;
+            detailsHTML += '<h4>Event</h4>';
+            detailsHTML += \`<div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">\${esc(event.type)}</div></div>\`;
             detailsHTML += \`<div class="detail-item"><div class="detail-label">Timestamp</div><div class="detail-value">\${new Date(event.timestamp).toLocaleString()}</div></div>\`;
-            detailsHTML += \`<div class="detail-item"><div class="detail-label">Relative Time</div><div class="detail-value">\${formatTimestamp(event.timestamp - startTime)}</div></div>\`;
+            detailsHTML += \`<div class="detail-item"><div class="detail-label">Relative time</div><div class="detail-value">\${formatTimestamp(event.timestamp - startTime)}</div></div>\`;
             detailsHTML += '</div>';
             
             if (event.type === 'network') {
@@ -1820,28 +2022,28 @@ function generateImprovedTimelineHTML(data) {
 
         function generateNetworkDetails(data) {
             let html = '<div class="detail-section">';
-            html += '<h4>Request Details</h4>';
-            html += \`<div class="detail-item"><div class="detail-label">URL</div><div class="detail-value">\${data.url}</div></div>\`;
-            html += \`<div class="detail-item"><div class="detail-label">Method</div><div class="detail-value">\${data.method}</div></div>\`;
+            html += '<h4>Request</h4>';
+            html += \`<div class="detail-item"><div class="detail-label">URL</div><div class="detail-value">\${esc(data.url)}</div></div>\`;
+            html += \`<div class="detail-item"><div class="detail-label">Method</div><div class="detail-value">\${esc(data.method)}</div></div>\`;
             
             if (data.headers) {
-                html += \`<div class="detail-item"><div class="detail-label">Request Headers</div><div class="detail-value"><pre>\${JSON.stringify(data.headers, null, 2)}</pre></div></div>\`;
+                html += \`<div class="detail-item"><div class="detail-label">Request headers</div><div class="detail-value"><pre>\${esc(JSON.stringify(data.headers, null, 2))}</pre></div></div>\`;
             }
             
             if (data.postData) {
-                html += \`<div class="detail-item"><div class="detail-label">Request Body</div><div class="detail-value"><pre>\${data.postData}</pre></div></div>\`;
+                html += \`<div class="detail-item"><div class="detail-label">Request body</div><div class="detail-value"><pre>\${esc(data.postData)}</pre></div></div>\`;
             }
             html += '</div>';
             
             if (data.response) {
                 html += '<div class="detail-section">';
-                html += '<h4>Response Details</h4>';
+                html += '<h4>Response</h4>';
                 
                 const statusClass = data.response.status >= 200 && data.response.status < 300 ? 'status-success' : 'status-error';
-                html += \`<div class="detail-item"><div class="detail-label">Status</div><div class="detail-value"><span class="status-badge \${statusClass}">\${data.response.status} \${data.response.statusText}</span></div></div>\`;
+                html += \`<div class="detail-item"><div class="detail-label">Status</div><div class="detail-value"><span class="status-badge \${statusClass}">\${esc(data.response.status)} \${esc(data.response.statusText || '')}</span></div></div>\`;
                 
                 if (data.response.headers) {
-                    html += \`<div class="detail-item"><div class="detail-label">Response Headers</div><div class="detail-value"><pre>\${JSON.stringify(data.response.headers, null, 2)}</pre></div></div>\`;
+                    html += \`<div class="detail-item"><div class="detail-label">Response headers</div><div class="detail-value"><pre>\${esc(JSON.stringify(data.response.headers, null, 2))}</pre></div></div>\`;
                 }
                 
                 if (data.response.body) {
@@ -1849,11 +2051,11 @@ function generateImprovedTimelineHTML(data) {
                     if (typeof bodyDisplay === 'object') {
                         bodyDisplay = JSON.stringify(bodyDisplay, null, 2);
                     }
-                    html += \`<div class="detail-item"><div class="detail-label">Response Body</div><div class="detail-value response-body"><pre>\${bodyDisplay}</pre></div></div>\`;
+                    html += \`<div class="detail-item"><div class="detail-label">Response body</div><div class="detail-value response-body"><pre>\${esc(bodyDisplay)}</pre></div></div>\`;
                 }
                 
                 if (data.loadingFinished) {
-                    html += \`<div class="detail-item"><div class="detail-label">Data Size</div><div class="detail-value">\${formatBytes(data.loadingFinished.encodedDataLength)}</div></div>\`;
+                    html += \`<div class="detail-item"><div class="detail-label">Size</div><div class="detail-value">\${formatBytes(data.loadingFinished.encodedDataLength)}</div></div>\`;
                 }
                 
                 html += '</div>';
@@ -1861,8 +2063,8 @@ function generateImprovedTimelineHTML(data) {
             
             if (data.loadingFailed) {
                 html += '<div class="detail-section">';
-                html += '<h4>Error Details</h4>';
-                html += \`<div class="detail-item"><div class="detail-label">Error</div><div class="detail-value"><span class="status-badge status-error">\${data.loadingFailed.errorText}</span></div></div>\`;
+                html += '<h4>Error</h4>';
+                html += \`<div class="detail-item"><div class="detail-label">Error</div><div class="detail-value"><span class="status-badge status-error">\${esc(data.loadingFailed.errorText)}</span></div></div>\`;
                 html += '</div>';
             }
             
@@ -1871,25 +2073,25 @@ function generateImprovedTimelineHTML(data) {
 
         function generateInteractionDetails(data) {
             let html = '<div class="detail-section">';
-            html += '<h4>Interaction Details</h4>';
-            html += \`<div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">\${data.type}</div></div>\`;
+            html += '<h4>Interaction</h4>';
+            html += \`<div class="detail-item"><div class="detail-label">Type</div><div class="detail-value">\${esc(data.type)}</div></div>\`;
             
             // Handle coordinates object
             if (data.coordinates && data.coordinates.clientX !== undefined) {
-                html += \`<div class="detail-item"><div class="detail-label">Client Coordinates</div><div class="detail-value">(\${data.coordinates.clientX}, \${data.coordinates.clientY})</div></div>\`;
+                html += \`<div class="detail-item"><div class="detail-label">Client coordinates</div><div class="detail-value">(\${data.coordinates.clientX}, \${data.coordinates.clientY})</div></div>\`;
             }
             
             if (data.coordinates && data.coordinates.pageX !== undefined) {
-                html += \`<div class="detail-item"><div class="detail-label">Page Coordinates</div><div class="detail-value">(\${data.coordinates.pageX}, \${data.coordinates.pageY})</div></div>\`;
+                html += \`<div class="detail-item"><div class="detail-label">Page coordinates</div><div class="detail-value">(\${data.coordinates.pageX}, \${data.coordinates.pageY})</div></div>\`;
             }
             
             // Handle scrollPosition object
             if (data.scrollPosition) {
-                html += \`<div class="detail-item"><div class="detail-label">Scroll Position</div><div class="detail-value">(\${data.scrollPosition.x}, \${data.scrollPosition.y})</div></div>\`;
+                html += \`<div class="detail-item"><div class="detail-label">Scroll position</div><div class="detail-value">(\${data.scrollPosition.x}, \${data.scrollPosition.y})</div></div>\`;
             }
             
             if (data.element) {
-                html += \`<div class="detail-item"><div class="detail-label">Element</div><div class="detail-value"><pre>\${JSON.stringify(data.element, null, 2)}</pre></div></div>\`;
+                html += \`<div class="detail-item"><div class="detail-label">Element</div><div class="detail-value"><pre>\${esc(JSON.stringify(data.element, null, 2))}</pre></div></div>\`;
             }
             
             html += '</div>';
@@ -1898,9 +2100,9 @@ function generateImprovedTimelineHTML(data) {
 
         function generateSnapshotDetails(data) {
             let html = '<div class="detail-section">';
-            html += '<h4>Snapshot Details</h4>';
-            html += \`<div class="detail-item"><div class="detail-label">URL</div><div class="detail-value">\${data.url}</div></div>\`;
-            html += \`<div class="detail-item"><div class="detail-label">Element Count</div><div class="detail-value">\${data.elements.length}</div></div>\`;
+            html += '<h4>Snapshot</h4>';
+            html += \`<div class="detail-item"><div class="detail-label">URL</div><div class="detail-value">\${esc(data.url)}</div></div>\`;
+            html += \`<div class="detail-item"><div class="detail-label">Element count</div><div class="detail-value">\${data.elements.length}</div></div>\`;
             
             if (data.viewport) {
                 html += \`<div class="detail-item"><div class="detail-label">Viewport</div><div class="detail-value">\${data.viewport.width}x\${data.viewport.height}</div></div>\`;
@@ -1909,7 +2111,7 @@ function generateImprovedTimelineHTML(data) {
             if (data.elements && data.elements.length > 0) {
                 html += '<div class="detail-item"><div class="detail-label">Elements</div><div class="detail-value"><pre>';
                 data.elements.slice(0, 20).forEach((el, i) => {
-                    html += \`\${i + 1}. \${el.tagName}\${el.id ? ' #' + el.id : ''}\${el.className ? ' .' + el.className : ''}\\n\`;
+                    html += esc(\`\${i + 1}. \${el.tagName}\${el.id ? ' #' + el.id : ''}\${el.className ? ' .' + el.className : ''}\`) + '\\n';
                 });
                 if (data.elements.length > 20) {
                     html += \`... and \${data.elements.length - 20} more\\n\`;
@@ -1919,6 +2121,10 @@ function generateImprovedTimelineHTML(data) {
             
             html += '</div>';
             return html;
+        }
+
+        function esc(value) {
+            return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
 
         function formatTimestamp(ms) {
@@ -1968,57 +2174,33 @@ function generateImprovedTimelineHTML(data) {
     }
 
     function generateTimelineTracks(data, startTime, endTime) {
-        const duration = endTime - startTime;
+        // data-index is the position in that type's own list; the page script maps it back to the event.
+        const track = (label, items) => `<div class="timeline-track"><div class="track-label">${label}</div><div class="track-list">${items}</div></div>`;
+        const pill = (type, index, tag, name, meta) => `<button class="event-pill ${type}" data-type="${type}" data-index="${index}">
+                    <span class="pill-main"><span class="tag ${type}">${tag}</span><span class="pill-name">${name}</span></span>
+                    <span class="pill-meta">${meta}</span>
+                </button>`;
+        const at = timestamp => ((timestamp - startTime) / 1000).toFixed(2) + 's';
         let html = '';
 
-        // Network track with vertical list
         if (data.networkLogs && data.networkLogs.length > 0) {
-            html += '<div class="timeline-track" style="min-height: auto; flex-direction: column; align-items: stretch;">';
-            html += '<div class="track-label" style="padding: 0.5rem 1rem; position: sticky; top: 0; background: #f7fafc; z-index: 5; border-bottom: 1px solid #e2e8f0;">Network Requests</div>';
-            html += '<div style="display: flex; flex-direction: column;">';
-            data.networkLogs.forEach((log, index) => {
-                const method = log.method || 'GET';
-                const url = log.url.split('?')[0].split('/').pop() || 'API';
+            html += track('Network requests', data.networkLogs.map((log, index) => {
+                const url = String(log.url || '').split('?')[0].split('/').pop() || 'API';
                 const status = log.response ? log.response.status : '...';
-                const relativeTime = ((log.timestamp - startTime) / 1000).toFixed(2);
-                html += `<div class="event-pill network" data-type="network" data-index="${index}" style="position: relative; left: 0; margin: 0.25rem 1rem; max-width: none; border-radius: 6px; justify-content: space-between;">
-                    <span>${method} ${url}</span>
-                    <span style="opacity: 0.8; font-size: 0.7rem;">${status} • ${relativeTime}s</span>
-                </div>`;
-            });
-            html += '</div></div>';
+                return pill('network', index, escapeHtml(log.method || 'GET'), escapeHtml(url), `${escapeHtml(status)} · ${at(log.timestamp)}`);
+            }).join(''));
         }
 
-        // Interactions track with vertical list
         if (data.interactionLogs && data.interactionLogs.length > 0) {
-            html += '<div class="timeline-track" style="min-height: auto; flex-direction: column; align-items: stretch;">';
-            html += '<div class="track-label" style="padding: 0.5rem 1rem; position: sticky; top: 0; background: #f7fafc; z-index: 5; border-bottom: 1px solid #e2e8f0;">User Interactions</div>';
-            html += '<div style="display: flex; flex-direction: column;">';
-            data.interactionLogs.forEach((log, index) => {
-                const globalIndex = data.networkLogs ? data.networkLogs.length + index : index;
-                const relativeTime = ((log.timestamp - startTime) / 1000).toFixed(2);
-                html += `<div class="event-pill interaction" data-type="interaction" data-index="${globalIndex}" style="position: relative; left: 0; margin: 0.25rem 1rem; max-width: none; border-radius: 6px; justify-content: space-between;">
-                    <span>${log.type}</span>
-                    <span style="opacity: 0.8; font-size: 0.7rem;">${relativeTime}s</span>
-                </div>`;
-            });
-            html += '</div></div>';
+            html += track('User interactions', data.interactionLogs.map((log, index) =>
+                pill('interaction', index, escapeHtml(log.type || 'event'), escapeHtml(log.element && log.element.text ? log.element.text.replace(/\s+/g, ' ').trim().slice(0, 80) : (log.element ? String(log.element.tagName || '').toLowerCase() : '')), at(log.timestamp))
+            ).join(''));
         }
 
-        // Snapshots track with vertical list
         if (data.elementSnapshots && data.elementSnapshots.length > 0) {
-            html += '<div class="timeline-track" style="min-height: auto; flex-direction: column; align-items: stretch;">';
-            html += '<div class="track-label" style="padding: 0.5rem 1rem; position: sticky; top: 0; background: #f7fafc; z-index: 5; border-bottom: 1px solid #e2e8f0;">Element Snapshots</div>';
-            html += '<div style="display: flex; flex-direction: column;">';
-            data.elementSnapshots.forEach((snapshot, index) => {
-                const globalIndex = (data.networkLogs?.length || 0) + (data.interactionLogs?.length || 0) + index;
-                const relativeTime = ((snapshot.timestamp - startTime) / 1000).toFixed(2);
-                html += `<div class="event-pill snapshot" data-type="snapshot" data-index="${globalIndex}" style="position: relative; left: 0; margin: 0.25rem 1rem; max-width: none; border-radius: 6px; justify-content: space-between;">
-                    <span>Snapshot (${snapshot.elements.length})</span>
-                    <span style="opacity: 0.8; font-size: 0.7rem;">${relativeTime}s</span>
-                </div>`;
-            });
-            html += '</div></div>';
+            html += track('Element snapshots', data.elementSnapshots.map((snapshot, index) =>
+                pill('snapshot', index, 'snapshot', `${(snapshot.elements || []).length} elements`, at(snapshot.timestamp))
+            ).join(''));
         }
 
         return html;
@@ -2090,13 +2272,37 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             vh: log.viewport.height
         }));
 
+    const recordedAt = new Date(data.exportDate).toLocaleString();
+    const pageUrl = ((data.interactionLogs || []).find(log => log.url) || (data.networkLogs || [])[0] || {}).url;
+    const host = hostOf(pageUrl);
+    const snapshotCount = (data.elementSnapshots || []).length;
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Timeline - ${new Date(data.exportDate).toLocaleString()}</title>
+    <meta name="color-scheme" content="dark">
+    <title>Session replay${host ? ' · ' + escapeHtml(host) : ''} · ${escapeHtml(recordedAt)}</title>
     <style>
+        :root {
+            --bg: #0c0c0e;
+            --panel: #141417;
+            --panel-2: #1b1b1f;
+            --line: #25252a;
+            --line-2: #34343b;
+            --text: #ececef;
+            --text-2: #b0b0b9;
+            --text-3: #8a8a94;
+            --accent: #e5484d;
+            --accent-soft: rgba(229, 72, 77, 0.14);
+            --ok: #3dd68c;
+            --warn: #f1a10d;
+            --info: #70b8ff;
+            --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+            --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -2104,35 +2310,123 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0f172a;
-            color: #e2e8f0;
+            font: 13px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
             overflow: hidden;
+            -webkit-font-smoothing: antialiased;
         }
 
-        .video-layout {
+        button, select {
+            font: inherit;
+            color: inherit;
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .app {
             display: flex;
+            flex-direction: column;
             height: 100vh;
+            height: 100dvh;
+        }
+
+        /* Top bar */
+        .topbar {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--line);
+            background: var(--panel);
+            animation: fade 0.4s var(--ease) both;
+        }
+
+        .mark {
+            flex: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            background: var(--text);
+            display: grid;
+            place-items: center;
+        }
+
+        .mark span {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 0 3px var(--text);
+        }
+
+        .title {
+            min-width: 0;
+        }
+
+        .title h1 {
+            font-size: 14px;
+            font-weight: 650;
+            letter-spacing: -0.01em;
+        }
+
+        .title p {
+            font-size: 12px;
+            color: var(--text-3);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chips {
+            display: flex;
+            gap: 6px;
+            margin-left: auto;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 5px;
+            padding: 4px 9px;
+            border: 1px solid var(--line-2);
+            border-radius: 7px;
+            font-size: 12px;
+            color: var(--text-3);
+            white-space: nowrap;
+        }
+
+        .chip b {
+            color: var(--text);
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .chip.version {
+            font-family: var(--mono);
+            font-size: 11px;
+        }
+
+        /* Two-pane layout */
+        .video-layout {
+            flex: 1;
+            min-height: 0;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(340px, 38%);
         }
 
         .video-section {
-            flex: 0 0 60%;
-            background: #000;
             display: flex;
             flex-direction: column;
-            border-right: 2px solid #1e293b;
-        }
-
-        .video-header {
-            padding: 1rem;
-            background: #1e293b;
-            border-bottom: 1px solid #334155;
-        }
-
-        .video-header h1 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #f1f5f9;
+            min-width: 0;
+            padding: 16px;
+            gap: 12px;
+            animation: fade 0.45s var(--ease) 60ms both;
         }
 
         .video-container {
@@ -2141,9 +2435,11 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #000;
             position: relative;
             overflow: hidden;
+            border-radius: 12px;
+            background: #000;
+            box-shadow: 0 0 0 1px var(--line), 0 24px 48px -24px rgba(0, 0, 0, 0.8);
         }
 
         video {
@@ -2162,13 +2458,13 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
         .click-marker {
             position: absolute;
             display: none;
-            width: 44px;
-            height: 44px;
-            margin: -22px 0 0 -22px;
+            width: 40px;
+            height: 40px;
+            margin: -20px 0 0 -20px;
             border-radius: 50%;
-            border: 3px solid #f43f5e;
-            background: rgba(244, 63, 94, 0.25);
-            box-shadow: 0 0 12px rgba(244, 63, 94, 0.6);
+            border: 2px solid var(--accent);
+            background: rgba(229, 72, 77, 0.22);
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 0 18px rgba(229, 72, 77, 0.55);
         }
 
         .click-marker::after {
@@ -2176,196 +2472,327 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             position: absolute;
             left: 50%;
             top: 50%;
-            width: 10px;
-            height: 10px;
-            margin: -5px 0 0 -5px;
+            width: 8px;
+            height: 8px;
+            margin: -4px 0 0 -4px;
             border-radius: 50%;
-            background: #f43f5e;
+            background: var(--accent);
         }
 
-        .click-tick {
+        /* Ripple replays each time a marker appears (display none -> block restarts it). */
+        .click-marker::before {
+            content: '';
             position: absolute;
-            top: -3px;
-            width: 2px;
-            height: 12px;
-            margin-left: -1px;
-            background: #f43f5e;
-            border-radius: 1px;
-            pointer-events: none;
+            inset: -2px;
+            border-radius: 50%;
+            border: 2px solid var(--accent);
+            animation: ripple 0.7s var(--ease) both;
+        }
+
+        @keyframes ripple {
+            from { transform: scale(0.6); opacity: 0.9; }
+            to { transform: scale(2.2); opacity: 0; }
         }
 
         .video-placeholder {
+            display: grid;
+            justify-items: center;
+            gap: 8px;
+            padding: 32px;
             text-align: center;
-            color: #64748b;
-            padding: 2rem;
+            color: var(--text-3);
+            max-width: 340px;
         }
 
         .video-placeholder svg {
-            width: 80px;
-            height: 80px;
-            margin-bottom: 1rem;
-            opacity: 0.5;
+            width: 40px;
+            height: 40px;
+            color: var(--text-3);
+            margin-bottom: 4px;
         }
 
+        .no-video {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        /* Transport */
         .video-controls {
-            padding: 1rem;
-            background: #1e293b;
-            border-top: 1px solid #334155;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: var(--panel);
         }
 
         .controls-row {
             display: flex;
             align-items: center;
-            gap: 1rem;
-            margin-bottom: 0.75rem;
+            gap: 14px;
         }
 
         .play-btn {
-            width: 40px;
-            height: 40px;
+            flex: none;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
-            background: #3b82f6;
             border: none;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            background: var(--text);
+            color: var(--bg);
+            display: grid;
+            place-items: center;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: transform 0.15s var(--ease), background 0.15s var(--ease);
         }
 
         .play-btn:hover {
-            background: #2563eb;
-            transform: scale(1.05);
+            background: #fff;
+        }
+
+        .play-btn:active {
+            transform: scale(0.94);
+        }
+
+        .play-btn svg {
+            width: 16px;
+            height: 16px;
         }
 
         .time-display {
-            font-size: 0.875rem;
+            flex: none;
+            min-width: 96px;
+            font-family: var(--mono);
+            font-size: 12px;
+            color: var(--text-2);
             font-variant-numeric: tabular-nums;
-            color: #94a3b8;
-            min-width: 120px;
         }
 
         .timeline-slider {
             flex: 1;
-            height: 6px;
-            background: #334155;
-            border-radius: 3px;
+            height: 22px;
             position: relative;
             cursor: pointer;
             touch-action: none;
+            border-radius: 4px;
+        }
+
+        .timeline-slider::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 50%;
+            height: 4px;
+            margin-top: -2px;
+            border-radius: 2px;
+            background: var(--line-2);
+            transition: transform 0.15s var(--ease);
         }
 
         .timeline-progress {
-            height: 100%;
-            background: #3b82f6;
-            border-radius: 3px;
-            position: relative;
+            position: absolute;
+            left: 0;
+            top: 50%;
+            height: 4px;
+            margin-top: -2px;
+            border-radius: 2px;
+            background: var(--accent);
+            transition: transform 0.15s var(--ease);
+        }
+
+        .timeline-slider:hover::before,
+        .timeline-slider:hover .timeline-progress,
+        .timeline-slider:focus-visible::before,
+        .timeline-slider:focus-visible .timeline-progress {
+            transform: scaleY(1.5);
         }
 
         .timeline-handle {
             position: absolute;
-            right: -6px;
+            right: -7px;
             top: 50%;
-            transform: translateY(-50%);
-            width: 12px;
-            height: 12px;
-            background: white;
+            width: 14px;
+            height: 14px;
+            margin-top: -7px;
             border-radius: 50%;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(229, 72, 77, 0.35), 0 2px 6px rgba(0, 0, 0, 0.5);
+            transform: scale(0.6);
+            transition: transform 0.15s var(--ease);
+        }
+
+        .timeline-slider:hover .timeline-handle,
+        .timeline-slider:focus-visible .timeline-handle,
+        .timeline-slider:active .timeline-handle {
+            transform: scale(1);
+        }
+
+        .click-tick {
+            position: absolute;
+            top: 50%;
+            width: 2px;
+            height: 10px;
+            margin: -5px 0 0 -1px;
+            border-radius: 1px;
+            background: #fff;
+            opacity: 0.55;
+            pointer-events: none;
         }
 
         .speed-control {
-            padding: 0.5rem 0.75rem;
-            background: #334155;
-            border: 1px solid #475569;
-            border-radius: 6px;
-            color: #e2e8f0;
-            font-size: 0.875rem;
+            flex: none;
+            height: 30px;
+            padding: 0 8px;
+            border: 1px solid var(--line-2);
+            border-radius: 8px;
+            background: var(--panel-2);
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
             cursor: pointer;
         }
 
+        .shortcuts {
+            margin-top: 8px;
+            font-size: 11.5px;
+            color: var(--text-3);
+        }
+
+        kbd {
+            font-family: var(--mono);
+            font-size: 10.5px;
+            padding: 1px 5px;
+            border: 1px solid var(--line-2);
+            border-bottom-width: 2px;
+            border-radius: 4px;
+            color: var(--text-2);
+        }
+
+        /* Side panel */
         .data-section {
-            flex: 0 0 40%;
-            background: #1e293b;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            min-height: 0;
+            border-left: 1px solid var(--line);
+            background: var(--panel);
+            animation: fade 0.45s var(--ease) 120ms both;
         }
 
         .data-header {
-            padding: 1rem;
-            background: #334155;
-            border-bottom: 1px solid #475569;
+            padding: 12px 12px 0;
+            border-bottom: 1px solid var(--line);
         }
 
         .data-tabs {
             display: flex;
-            gap: 0.5rem;
+            gap: 4px;
         }
 
         .data-tab {
-            padding: 0.5rem 1rem;
-            background: transparent;
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 10px 11px;
             border: none;
-            color: #94a3b8;
-            font-size: 0.875rem;
-            font-weight: 500;
+            background: transparent;
+            color: var(--text-3);
+            font-size: 12.5px;
+            font-weight: 550;
             cursor: pointer;
-            border-radius: 6px;
-            transition: all 0.2s;
+            transition: color 0.15s var(--ease);
         }
 
-        .data-tab.active {
-            background: #1e293b;
-            color: #3b82f6;
+        .data-tab::after {
+            content: '';
+            position: absolute;
+            left: 10px;
+            right: 10px;
+            bottom: -1px;
+            height: 2px;
+            border-radius: 2px;
+            background: var(--accent);
+            transform: scaleX(0);
+            transition: transform 0.2s var(--ease);
         }
 
         .data-tab:hover {
-            color: #e2e8f0;
+            color: var(--text);
+        }
+
+        .data-tab.active {
+            color: var(--text);
+        }
+
+        .data-tab.active::after {
+            transform: scaleX(1);
+        }
+
+        .tab-count {
+            padding: 0 6px;
+            border-radius: 5px;
+            background: var(--panel-2);
+            color: var(--text-3);
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
         }
 
         .data-content {
             flex: 1;
             overflow-y: auto;
-            padding: 0;
+            overscroll-behavior: contain;
         }
 
         .log-list {
             list-style: none;
+            padding: 6px;
         }
 
         .log-item {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid #334155;
-            cursor: pointer;
-            transition: background 0.2s;
             display: flex;
             align-items: flex-start;
-            gap: 0.75rem;
+            gap: 10px;
+            padding: 9px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.16s var(--ease), box-shadow 0.16s var(--ease);
+        }
+
+        .log-item + .log-item {
+            margin-top: 1px;
         }
 
         .log-item:hover {
-            background: #334155;
+            background: var(--panel-2);
         }
 
         .log-item.active {
-            background: #1e40af;
-            border-left: 3px solid #3b82f6;
+            background: rgba(255, 255, 255, 0.045);
+            box-shadow: inset 2px 0 0 var(--text-3);
         }
 
         .log-item.selected {
-            background: #1e3a8a;
-            box-shadow: inset 3px 0 0 #f43f5e;
+            background: var(--accent-soft);
+            box-shadow: inset 2px 0 0 var(--accent);
+        }
+
+        .log-item.empty {
+            justify-content: center;
+            padding: 40px 16px;
+            color: var(--text-3);
+            cursor: default;
+        }
+
+        .log-item.empty:hover {
+            background: transparent;
         }
 
         .log-time {
-            font-size: 0.75rem;
-            color: #64748b;
+            flex: none;
+            min-width: 44px;
+            padding-top: 1px;
+            font-family: var(--mono);
+            font-size: 11.5px;
+            color: var(--text-3);
             font-variant-numeric: tabular-nums;
-            min-width: 48px;
-            flex-shrink: 0;
-            padding-top: 0.125rem;
         }
 
         .log-content {
@@ -2373,31 +2800,47 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             min-width: 0;
         }
 
-        .log-method {
-            display: inline-block;
-            padding: 0.125rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            margin-right: 0.5rem;
+        .log-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
-        .method-GET { background: #065f46; color: #d1fae5; }
-        .method-POST { background: #1e40af; color: #dbeafe; }
-        .method-PUT { background: #c2410c; color: #fed7aa; }
-        .method-DELETE { background: #991b1b; color: #fecaca; }
-        .method-PATCH { background: #7e22ce; color: #f3e8ff; }
+        .log-method,
+        .log-status {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 5px;
+            font-family: var(--mono);
+            font-size: 10.5px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        .log-method { background: var(--panel-2); color: var(--text-2); }
+        .method-POST { background: rgba(112, 184, 255, 0.12); color: var(--info); }
+        .method-PUT, .method-PATCH { background: rgba(241, 161, 13, 0.12); color: var(--warn); }
+        .method-DELETE { background: var(--accent-soft); color: var(--accent); }
+
+        .status-success { background: rgba(61, 214, 140, 0.12); color: var(--ok); }
+        .status-error { background: var(--accent-soft); color: #ff8589; }
+        .status-pending { background: rgba(241, 161, 13, 0.12); color: var(--warn); }
 
         .log-url {
-            font-size: 0.8125rem;
-            line-height: 1.4;
-            color: #cbd5e1;
+            margin-top: 5px;
+            font-family: var(--mono);
+            font-size: 12px;
+            line-height: 1.45;
+            color: var(--text);
             overflow-wrap: anywhere;
-            margin-top: 0.375rem;
             display: -webkit-box;
             -webkit-line-clamp: 3;
             -webkit-box-orient: vertical;
             overflow: hidden;
+        }
+
+        .url-host {
+            color: var(--text-3);
         }
 
         .log-item.selected .log-url {
@@ -2405,34 +2848,26 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             -webkit-line-clamp: unset;
         }
 
-        .log-status {
-            display: inline-block;
-            font-size: 0.75rem;
-            margin-top: 0.25rem;
-            padding: 0.125rem 0.5rem;
-            border-radius: 4px;
-            font-weight: 500;
-        }
-
-        .status-success { background: #064e3b; color: #a7f3d0; }
-        .status-error { background: #7f1d1d; color: #fca5a5; }
-        .status-pending { background: #713f12; color: #fde68a; }
-
         .interaction-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.875rem;
-            flex-shrink: 0;
+            flex: none;
+            width: 26px;
+            height: 26px;
+            border-radius: 7px;
+            display: grid;
+            place-items: center;
+            background: var(--panel-2);
+            color: var(--text-2);
         }
 
-        .icon-click { background: #1e40af; }
-        .icon-scroll { background: #0891b2; }
-        .icon-drag { background: #c026d3; }
-        .icon-input { background: #ea580c; }
+        .interaction-icon svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .icon-click {
+            background: var(--accent-soft);
+            color: var(--accent);
+        }
 
         .interaction-details {
             flex: 1;
@@ -2440,155 +2875,141 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
         }
 
         .interaction-type {
-            font-size: 0.875rem;
+            font-size: 12.5px;
             font-weight: 600;
-            color: #f1f5f9;
-            text-transform: capitalize;
+            color: var(--text);
         }
 
         .interaction-info {
-            font-size: 0.75rem;
-            color: #94a3b8;
-            margin-top: 0.25rem;
+            margin-top: 2px;
+            font-size: 12px;
+            color: var(--text-2);
             overflow-wrap: anywhere;
         }
 
-        .summary-section {
-            padding: 1rem;
-            background: #334155;
-            border-bottom: 1px solid #475569;
-        }
-
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 0.75rem;
-        }
-
-        .summary-item {
-            text-align: center;
-        }
-
-        .summary-value {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #3b82f6;
-        }
-
-        .summary-label {
-            font-size: 0.75rem;
-            color: #94a3b8;
-            margin-top: 0.25rem;
+        .interaction-info code {
+            font-family: var(--mono);
+            font-size: 11.5px;
+            color: var(--text-3);
         }
 
         ::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #1e293b;
+            width: 10px;
         }
 
         ::-webkit-scrollbar-thumb {
-            background: #475569;
-            border-radius: 4px;
+            border: 3px solid var(--panel);
+            border-radius: 6px;
+            background: var(--line-2);
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: #64748b;
+            background: #4a4a52;
         }
 
-        .no-video {
-            color: #64748b;
-            font-size: 0.875rem;
+        @keyframes fade {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: none; }
+        }
+
+        @media (max-width: 900px) {
+            body { overflow: auto; }
+            .app { height: auto; }
+            .video-layout { grid-template-columns: minmax(0, 1fr); }
+            .data-section { min-width: 0; }
+            .data-tabs { overflow-x: auto; }
+            .data-tab { padding-left: 8px; padding-right: 8px; }
+            .video-container { aspect-ratio: 16 / 10; flex: none; }
+            .data-section { border-left: none; border-top: 1px solid var(--line); height: 70vh; }
+            .chips { display: none; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="video-layout">
-        <!-- Video Section (60%) -->
-        <div class="video-section">
-            <div class="video-header">
-                <h1>Session Replay - ${new Date(data.exportDate).toLocaleString()}</h1>
+    <div class="app">
+        <header class="topbar">
+            <span class="mark" aria-hidden="true"><span></span></span>
+            <div class="title">
+                <h1>Session replay</h1>
+                <p>${host ? escapeHtml(host) + ' · ' : ''}Recorded ${escapeHtml(recordedAt)}</p>
             </div>
-            
-            <div class="video-container" id="videoContainer">
-                ${videoSrc ? `<video id="videoPlayer" src="${videoSrc}" playsinline></video><div class="click-layer" id="clickLayer"></div>` : `
-                <div class="video-placeholder">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <circle cx="12" cy="12" r="10"/>
-                        <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/>
-                    </svg>
-                    <p class="no-video">Video recording not available</p>
-                    <p style="font-size: 0.75rem; margin-top: 0.5rem;">${videoFileName ? 'Video file: ' + videoFileName + ' (place in same directory as this HTML file)' : 'Enable video mode to capture screen recording'}</p>
-                </div>
-                `}
+            <div class="chips">
+                <span class="chip"><b>${formatDuration(duration)}</b> duration</span>
+                <span class="chip"><b>${data.summary.totalNetworkRequests}</b> requests</span>
+                <span class="chip"><b>${data.summary.totalInteractions}</b> interactions</span>
+                ${data.extensionVersion ? `<span class="chip version">v${escapeHtml(data.extensionVersion)}</span>` : ''}
             </div>
-            
-            ${videoSrc ? `
-            <div class="video-controls">
-                <div class="controls-row">
-                    <button class="play-btn" id="playBtn">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                            <polygon points="5 3 19 12 5 21 5 3"/>
+        </header>
+
+        <main class="video-layout">
+            <section class="video-section" aria-label="Recording">
+                <div class="video-container" id="videoContainer">
+                    ${videoSrc ? `<video id="videoPlayer" src="${videoSrc}" playsinline aria-label="Screen recording of the session"></video><div class="click-layer" id="clickLayer"></div>` : `
+                    <div class="video-placeholder">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="2.5" y="5.5" width="13" height="13" rx="2.5"/>
+                            <path d="M15.5 10l6-3.5v11l-6-3.5M3 3l18 18"/>
                         </svg>
-                    </button>
-                    <div class="time-display" id="timeDisplay">00:00 / 00:00</div>
-                    <div class="timeline-slider" id="timelineSlider">
-                        <div class="timeline-progress" id="timelineProgress" style="width: 0%">
-                            <div class="timeline-handle"></div>
+                        <p class="no-video">No video in this export</p>
+                        <p>${videoFileName ? 'Keep ' + escapeHtml(videoFileName) + ' in the same folder as this file.' : 'Record in Video + logs mode to include the screen recording.'}</p>
+                    </div>
+                    `}
+                </div>
+
+                ${videoSrc ? `
+                <div class="video-controls">
+                    <div class="controls-row">
+                        <button class="play-btn" id="playBtn" aria-label="Play">
+                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 001.5.86l12.5-7.5a1 1 0 000-1.72L8.5 3.64A1 1 0 007 4.5z"/></svg>
+                        </button>
+                        <div class="time-display" id="timeDisplay" aria-hidden="true">00:00 / 00:00</div>
+                        <div class="timeline-slider" id="timelineSlider" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+                            <div class="timeline-progress" id="timelineProgress" style="width: 0%">
+                                <div class="timeline-handle"></div>
+                            </div>
                         </div>
+                        <select class="speed-control" id="speedControl" aria-label="Playback speed">
+                            <option value="0.5">0.5×</option>
+                            <option value="1" selected>1×</option>
+                            <option value="1.5">1.5×</option>
+                            <option value="2">2×</option>
+                        </select>
                     </div>
-                    <select class="speed-control" id="speedControl">
-                        <option value="0.5">0.5x</option>
-                        <option value="1" selected>1x</option>
-                        <option value="1.5">1.5x</option>
-                        <option value="2">2x</option>
-                    </select>
+                    <p class="shortcuts"><kbd>Space</kbd> play / pause · <kbd>←</kbd> <kbd>→</kbd> 5 s on the timeline · click a row to jump to it</p>
                 </div>
-            </div>
-            ` : ''}
-        </div>
+                ` : ''}
+            </section>
 
-        <!-- Data Section (40%) -->
-        <div class="data-section">
-            <div class="summary-section">
-                <div class="summary-grid">
-                    <div class="summary-item">
-                        <div class="summary-value">${data.summary.totalNetworkRequests}</div>
-                        <div class="summary-label">Network</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-value">${data.summary.totalInteractions}</div>
-                        <div class="summary-label">Interactions</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-value">${formatDuration(duration)}</div>
-                        <div class="summary-label">Duration</div>
+            <aside class="data-section" aria-label="Captured events">
+                <div class="data-header">
+                    <div class="data-tabs" role="tablist" aria-label="Event type">
+                        <button class="data-tab active" data-tab="network" role="tab" id="tab-network" aria-controls="networkList" aria-selected="true">Network <span class="tab-count">${(data.networkLogs || []).length}</span></button>
+                        <button class="data-tab" data-tab="interactions" role="tab" id="tab-interactions" aria-controls="interactionsList" aria-selected="false" tabindex="-1">Interactions <span class="tab-count">${(data.interactionLogs || []).length}</span></button>
+                        <button class="data-tab" data-tab="snapshots" role="tab" id="tab-snapshots" aria-controls="snapshotsList" aria-selected="false" tabindex="-1">Snapshots <span class="tab-count">${snapshotCount}</span></button>
                     </div>
                 </div>
-            </div>
 
-            <div class="data-header">
-                <div class="data-tabs">
-                    <button class="data-tab active" data-tab="network">Network</button>
-                    <button class="data-tab" data-tab="interactions">Interactions</button>
-                    <button class="data-tab" data-tab="snapshots">Snapshots</button>
+                <div class="data-content">
+                    <ul class="log-list" id="networkList" role="tabpanel" aria-labelledby="tab-network">
+                        ${generateNetworkList(data.networkLogs, startTime)}
+                    </ul>
+                    <ul class="log-list" id="interactionsList" role="tabpanel" aria-labelledby="tab-interactions" style="display: none;">
+                        ${generateInteractionsList(data.interactionLogs, startTime)}
+                    </ul>
+                    <ul class="log-list" id="snapshotsList" role="tabpanel" aria-labelledby="tab-snapshots" style="display: none;">
+                        ${generateSnapshotsList(data.elementSnapshots, startTime)}
+                    </ul>
                 </div>
-            </div>
-            
-            <div class="data-content">
-                <ul class="log-list" id="networkList">
-                    ${generateNetworkList(data.networkLogs, startTime)}
-                </ul>
-                <ul class="log-list" id="interactionsList" style="display: none;">
-                    ${generateInteractionsList(data.interactionLogs, startTime)}
-                </ul>
-                <ul class="log-list" id="snapshotsList" style="display: none;">
-                    ${generateSnapshotsList(data.elementSnapshots, startTime)}
-                </ul>
-            </div>
-        </div>
+            </aside>
+        </main>
     </div>
 
     <script>
@@ -2598,19 +3019,24 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
         const clicks = ${JSON.stringify(clicks).replace(/</g, '\\u003c')};
         let seekVideo = null;
 
-        // Tab switching
-        document.querySelectorAll('.data-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                const tabName = tab.dataset.tab;
-                
-                document.querySelectorAll('.data-tab').forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                
-                document.getElementById('networkList').style.display = 'none';
-                document.getElementById('interactionsList').style.display = 'none';
-                document.getElementById('snapshotsList').style.display = 'none';
-                
-                document.getElementById(tabName + 'List').style.display = 'block';
+        // Tab switching (click, Space/Enter, or arrow keys inside the tab list).
+        const tabs = Array.from(document.querySelectorAll('.data-tab'));
+        function selectTab(tab) {
+            tabs.forEach(t => {
+                const on = t === tab;
+                t.classList.toggle('active', on);
+                t.setAttribute('aria-selected', String(on));
+                t.tabIndex = on ? 0 : -1;
+                document.getElementById(t.dataset.tab + 'List').style.display = on ? 'block' : 'none';
+            });
+        }
+        tabs.forEach((tab, i) => {
+            tab.addEventListener('click', () => selectTab(tab));
+            tab.addEventListener('keydown', (e) => {
+                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+                selectTab(next);
+                next.focus();
             });
         });
 
@@ -2631,8 +3057,8 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             const timelineProgress = document.getElementById('timelineProgress');
             const speedControl = document.getElementById('speedControl');
             const clickLayer = document.getElementById('clickLayer');
-            const PLAY_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>';
-            const PAUSE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+            const PLAY_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 001.5.86l12.5-7.5a1 1 0 000-1.72L8.5 3.64A1 1 0 007 4.5z"/></svg>';
+            const PAUSE_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5.5" y="4" width="4.5" height="16" rx="1.2"/><rect x="14" y="4" width="4.5" height="16" rx="1.2"/></svg>';
             const CLICK_SHOW_SECONDS = 1.2;
             const logItems = Array.from(document.querySelectorAll('.log-item[data-timestamp]'))
                 .map(el => ({ el, timestamp: Number(el.dataset.timestamp) }));
@@ -2704,10 +3130,12 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
 
             video.addEventListener('play', () => {
                 playBtn.innerHTML = PAUSE_ICON;
+                playBtn.setAttribute('aria-label', 'Pause');
                 requestAnimationFrame(loop);
             });
             video.addEventListener('pause', () => {
                 playBtn.innerHTML = PLAY_ICON;
+                playBtn.setAttribute('aria-label', 'Play');
                 render();
             });
             video.addEventListener('seeked', render);
@@ -2731,6 +3159,14 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             timelineSlider.addEventListener('pointermove', (e) => {
                 if (timelineSlider.hasPointerCapture(e.pointerId)) seekFromPointer(e);
             });
+            timelineSlider.addEventListener('keydown', (e) => {
+                const step = { ArrowLeft: -5, ArrowRight: 5, ArrowDown: -5, ArrowUp: 5 }[e.key];
+                if (step) seekTo(currentPosition() + step);
+                else if (e.key === 'Home') seekTo(0);
+                else if (e.key === 'End') seekTo(getDuration());
+                else return;
+                e.preventDefault();
+            });
 
             // Speed control
             speedControl.addEventListener('change', (e) => {
@@ -2742,6 +3178,9 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
                 const total = getDuration();
                 timelineProgress.style.width = (total ? Math.min(100, (current / total) * 100) : 0) + '%';
                 timeDisplay.textContent = formatTime(current) + ' / ' + formatTime(total);
+                timelineSlider.setAttribute('aria-valuemax', String(Math.round(total)));
+                timelineSlider.setAttribute('aria-valuenow', String(Math.round(current)));
+                timelineSlider.setAttribute('aria-valuetext', formatTime(current) + ' of ' + formatTime(total));
                 renderClicks(current);
                 const bucket = Math.floor(current * 4);
                 if (bucket !== lastHighlightBucket) {
@@ -2825,17 +3264,27 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
         return minutes > 0 ? `${minutes}m ${seconds % 60}s` : `${seconds}s`;
     }
 
-    function escapeHtml(value) {
-        return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    function hostOf(url) {
+        try {
+            return new URL(url).host;
+        } catch (e) {
+            return '';
+        }
+    }
+
+    function emptyRow(text) {
+        return `<li class="log-item empty">${text}</li>`;
     }
 
     function generateNetworkList(logs, startTime) {
-        if (!logs || logs.length === 0) return '<li class="log-item"><div class="log-content">No network requests recorded</div></li>';
+        if (!logs || logs.length === 0) return emptyRow('No network requests recorded');
 
         return logs.map(log => {
             const relativeTime = ((log.timestamp - startTime) / 1000).toFixed(1);
             const method = escapeHtml(log.method || 'GET');
-            const url = escapeHtml(log.url || '');
+            const rawUrl = log.url || '';
+            const host = hostOf(rawUrl);
+            const hostEnd = host ? rawUrl.indexOf(host) + host.length : 0;
             const status = log.response ? log.response.status : 'pending';
             const statusClass = status >= 200 && status < 300 ? 'status-success' : (status === 'pending' ? 'status-pending' : 'status-error');
 
@@ -2843,11 +3292,11 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
                 <li class="log-item" data-timestamp="${log.timestamp}">
                     <div class="log-time">${relativeTime}s</div>
                     <div class="log-content">
-                        <div>
+                        <div class="log-meta">
                             <span class="log-method method-${method}">${method}</span>
                             <span class="log-status ${statusClass}">${escapeHtml(status)}</span>
                         </div>
-                        <div class="log-url" title="${url}">${url}</div>
+                        <div class="log-url" title="${escapeHtml(rawUrl)}"><span class="url-host">${escapeHtml(rawUrl.slice(0, hostEnd))}</span>${escapeHtml(rawUrl.slice(hostEnd))}</div>
                     </div>
                 </li>
             `;
@@ -2855,27 +3304,40 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
     }
 
     function generateInteractionsList(logs, startTime) {
-        if (!logs || logs.length === 0) return '<li class="log-item"><div class="log-content">No interactions recorded</div></li>';
+        if (!logs || logs.length === 0) return emptyRow('No interactions recorded');
+
+        const ICONS = {
+            click: '<path d="M4 3l6.5 16 2.3-6.7L19.5 10 4 3z"/>',
+            scroll: '<path d="M12 3v18M7.5 7.5L12 3l4.5 4.5M7.5 16.5L12 21l4.5-4.5"/>',
+            drag: '<path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/>',
+            input: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>',
+            change: '<rect x="3" y="7" width="18" height="10" rx="5"/><circle cx="16" cy="12" r="2.5"/>'
+        };
 
         return logs.map(log => {
             const relativeTime = ((log.timestamp - startTime) / 1000).toFixed(1);
             const type = log.type || 'unknown';
-            const iconClass = `icon-${type}`;
-            const icon = type === 'click' ? '🖱️' : type === 'scroll' ? '📜' : type === 'drag' ? '✋' : '⌨️';
+            const label = type.charAt(0).toUpperCase() + type.slice(1);
+            const icon = ICONS[type] || ICONS.input;
 
-            let details = '';
+            let position = '';
             if (log.coordinates) {
-                details = `at (${log.coordinates.clientX}, ${log.coordinates.clientY})`;
+                position = `(${log.coordinates.clientX}, ${log.coordinates.clientY})`;
             } else if (log.scrollPosition) {
-                details = `to (${log.scrollPosition.x}, ${log.scrollPosition.y})`;
+                position = `to (${log.scrollPosition.x}, ${log.scrollPosition.y})`;
             }
+            const element = log.element || null;
+            const text = element && element.text ? element.text.replace(/\s+/g, ' ').trim().slice(0, 60) : '';
+            const tag = element && element.tagName ? `<code>${escapeHtml(String(element.tagName).toLowerCase())}</code>` : '';
+            const target = [tag, text && escapeHtml(`“${text}”`)].filter(Boolean).join(' ');
+            const details = [target, position && `<code>${escapeHtml(position)}</code>`].filter(Boolean).join(' · ');
 
             return `
                 <li class="log-item" data-timestamp="${log.timestamp}">
                     <div class="log-time">${relativeTime}s</div>
-                    <div class="interaction-icon ${iconClass}">${icon}</div>
+                    <div class="interaction-icon icon-${escapeHtml(type)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg></div>
                     <div class="interaction-details">
-                        <div class="interaction-type">${type}</div>
+                        <div class="interaction-type">${escapeHtml(label)}</div>
                         ${details ? `<div class="interaction-info">${details}</div>` : ''}
                     </div>
                 </li>
@@ -2884,7 +3346,7 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
     }
 
     function generateSnapshotsList(snapshots, startTime) {
-        if (!snapshots || snapshots.length === 0) return '<li class="log-item"><div class="log-content">No snapshots recorded</div></li>';
+        if (!snapshots || snapshots.length === 0) return emptyRow('No snapshots captured. Use Capture in the popup to add one');
 
         return snapshots.map(snapshot => {
             const relativeTime = ((snapshot.timestamp - startTime) / 1000).toFixed(1);
@@ -2894,7 +3356,7 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
                 <li class="log-item" data-timestamp="${snapshot.timestamp}">
                     <div class="log-time">${relativeTime}s</div>
                     <div class="log-content">
-                        <div class="interaction-type">Element Snapshot</div>
+                        <div class="interaction-type">Element snapshot</div>
                         <div class="interaction-info">${elementCount} elements captured</div>
                     </div>
                 </li>
