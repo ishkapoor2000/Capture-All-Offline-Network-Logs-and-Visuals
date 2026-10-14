@@ -224,7 +224,10 @@ function getElementData(element) {
             width: rect.width,
             height: rect.height
         },
-        visible: isElementVisible(element)
+        visible: isElementVisible(element),
+        // Tags for the export's "Skip in export" switches (background.js scrubElement).
+        ...(isPrivate(element) && { private: true }),
+        ...(element.isContentEditable && { editable: true })
     };
 }
 
@@ -279,6 +282,13 @@ function getCssSelector(element) {
     }
 
     return path.join(' > ');
+}
+
+// rrweb's privacy classes plus data-private: pages use them to mark content that must not be shared.
+const PRIVATE_SELECTOR = '.rr-mask, .rr-block, [data-private]';
+
+function isPrivate(element) {
+    return !!element.closest(PRIVATE_SELECTOR);
 }
 
 function getRelevantAttributes(element) {

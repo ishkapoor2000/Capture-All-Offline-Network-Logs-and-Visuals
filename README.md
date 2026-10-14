@@ -244,7 +244,14 @@ Both are single offline files, work in light and dark, and respect "reduce motio
 
 - All data is stored locally in your browser
 - Nothing is sent to external servers
-- Input capture avoids storing sensitive values directly when possible
+- **Skip in export** (popup): switches that decide what the exported zip leaves out. Both start on.
+  - *Typed text*: field values (including the `value` attribute that frameworks like React fill with what
+    you type, passwords too), and the text of textareas and rich-text editors. Button labels and checkbox or
+    radio values are kept. Typing still shows as a character count.
+  - *Private areas*: text and values inside `.rr-mask`, `.rr-block` or `[data-private]` elements.
+  - The switches apply at export. What was captured stays in browser storage until you export or press Clear.
+    `logs.json` records which switches were on (`exportSkip`).
+- Network requests and responses are still exported as captured, including headers and bodies
 
 ## Roadmap
 

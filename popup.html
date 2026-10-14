@@ -108,6 +108,32 @@
             </button>
         </div>
 
+        <details class="skip-panel">
+            <summary>
+                <span class="skip-title">Skip in export</span>
+                <span class="skip-summary" id="skipSummary">All on</span>
+                <svg class="chev" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M6 4l4 4-4 4"/>
+                </svg>
+            </summary>
+            <div class="skip-list">
+                <label class="skip-row">
+                    <span class="skip-text">
+                        <span class="skip-name">Typed text</span>
+                        <span class="skip-hint">Field values, notes and text editors</span>
+                    </span>
+                    <input type="checkbox" role="switch" class="switch" data-skip="typedText" checked>
+                </label>
+                <label class="skip-row">
+                    <span class="skip-text">
+                        <span class="skip-name">Private areas</span>
+                        <span class="skip-hint">Marked data-private or rr-mask</span>
+                    </span>
+                    <input type="checkbox" role="switch" class="switch" data-skip="privateAreas" checked>
+                </label>
+            </div>
+        </details>
+
         <footer class="footer-info">
             <div class="info-text">
                 <svg class="ic-lock" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

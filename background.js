@@ -1018,6 +1018,41 @@ async function stopRecording(tabId) {
     }
 }
 
+// "Skip in export" switches in the popup; true leaves that kind of data out of the export.
+const EXPORT_SKIP_DEFAULTS = { typedText: true, privateAreas: true };
+// Inputs of these types hold a fixed value (a button label, a checkbox's form value). Any other input's
+// value is what the user typed, and React mirrors it into the value attribute, passwords included.
+const FIXED_VALUE_TYPES = ['button', 'submit', 'reset', 'image', 'checkbox', 'radio'];
+
+function scrubElement(el, skip) {
+    if (!el || typeof el !== 'object' || !el.tagName) return el;
+    const tag = String(el.tagName).toUpperCase();
+    const type = String((el.attributes && el.attributes.type) || 'text').toLowerCase();
+    const typedField = tag === 'TEXTAREA' || (tag === 'INPUT' && !FIXED_VALUE_TYPES.includes(type));
+    const out = { ...el, attributes: { ...(el.attributes || {}) } };
+    if ((skip.typedText && typedField) || (skip.privateAreas && el.private)) {
+        delete out.attributes.value;
+    }
+    if ((skip.typedText && (tag === 'TEXTAREA' || el.editable)) || (skip.privateAreas && el.private)) {
+        out.text = null;
+    }
+    return out;
+}
+
+function scrubCapture(interactionLogs, elementSnapshots, skip) {
+    return {
+        interactionLogs: interactionLogs.map(log => ({
+            ...log,
+            element: scrubElement(log.element, skip),
+            scrollTarget: scrubElement(log.scrollTarget, skip)
+        })),
+        elementSnapshots: elementSnapshots.map(snap => ({
+            ...snap,
+            elements: (snap.elements || []).map(el => scrubElement(el, skip))
+        }))
+    };
+}
+
 /**
  * Exports all captured data as one zip: capture_all_<timestamp>/timeline.html, logs.json and,
  * in video mode, video.webm. The zip is assembled in the offscreen document (service workers
@@ -1034,9 +1069,9 @@ async function exportAllLogs(tabId, mode) {
         await networkLogsReady;
 
         // Get interaction logs and element snapshots from chrome.storage
-        const result = await chrome.storage.local.get(['interactionLogs', 'elementSnapshots', 'videoRecordingStartTime']);
-        const interactionLogs = result.interactionLogs || [];
-        const elementSnapshots = result.elementSnapshots || [];
+        const result = await chrome.storage.local.get(['interactionLogs', 'elementSnapshots', 'videoRecordingStartTime', 'exportSkip']);
+        const exportSkip = { ...EXPORT_SKIP_DEFAULTS, ...(result.exportSkip || {}) };
+        const { interactionLogs, elementSnapshots } = scrubCapture(result.interactionLogs || [], result.elementSnapshots || [], exportSkip);
         // When video began (video t=0). Used to align the timeline with the video player.
         const videoStartTime = result.videoRecordingStartTime || null;
 
@@ -1061,6 +1096,7 @@ async function exportAllLogs(tabId, mode) {
             extensionVersion: chrome.runtime.getManifest().version,
             tabId: tabId,
             mode: mode,
+            exportSkip: exportSkip,
             videoStartTime: videoStartTime,
             networkLogs: networkLogs,
             interactionLogs: interactionLogs,

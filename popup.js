@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 	document.getElementById('clearBtn').addEventListener('click', clearLogs);
 
 	setupMotion();
+	setupSkipSwitches();
 
 	// Refresh status (button states) and stats every 2 seconds while the popup is open, so
 	// the UI stays correct even if the recording state changes underneath it.
@@ -376,6 +377,35 @@ async function exportLogs() {
 		console.error('Export failed:', error);
 		showNotification('Export failed: ' + error.message, 'error');
 	}
+}
+
+// "Skip in export" switches: saved as exportSkip and applied by background.js when it builds the zip.
+async function setupSkipSwitches() {
+	const { exportSkip = {} } = await chrome.storage.local.get(['exportSkip']);
+	document.querySelectorAll('[data-skip]').forEach(sw => {
+		sw.checked = exportSkip[sw.dataset.skip] !== false;
+		sw.addEventListener('change', saveSkipSwitches);
+	});
+	updateSkipSummary();
+}
+
+async function saveSkipSwitches() {
+	const exportSkip = {};
+	document.querySelectorAll('[data-skip]').forEach(sw => { exportSkip[sw.dataset.skip] = sw.checked; });
+	updateSkipSummary();
+	try {
+		await chrome.storage.local.set({ exportSkip });
+	} catch (error) {
+		showNotification('Could not save the export setting', 'error');
+	}
+}
+
+function updateSkipSummary() {
+	const switches = [...document.querySelectorAll('[data-skip]')];
+	const on = switches.filter(sw => sw.checked).length;
+	const summary = document.getElementById('skipSummary');
+	summary.textContent = on === switches.length ? 'All on' : on === 0 ? 'Off' : `${on} of ${switches.length} on`;
+	summary.classList.toggle('partial', on < switches.length);
 }
 
 async function clearLogs() {

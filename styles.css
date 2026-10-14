@@ -83,6 +83,7 @@ button:focus-visible {
 .container > :nth-child(6) { animation-delay: 150ms; }
 .container > :nth-child(7) { animation-delay: 180ms; }
 .container > :nth-child(8) { animation-delay: 210ms; }
+.container > :nth-child(9) { animation-delay: 240ms; }
 
 @keyframes rise {
     from { opacity: 0; transform: translateY(6px); filter: blur(3px); }
@@ -704,6 +705,132 @@ h1 {
 @keyframes shutter {
     from { opacity: 0.5; }
     to { opacity: 0; }
+}
+
+/* Skip in export: what the zip leaves out */
+.skip-panel {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    overflow: hidden;
+}
+
+.skip-panel summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    font-size: 12px;
+    font-weight: 550;
+    color: var(--text-2);
+    cursor: pointer;
+    list-style: none;
+    transition: background 0.18s var(--ease), color 0.18s var(--ease);
+}
+
+.skip-panel summary::-webkit-details-marker {
+    display: none;
+}
+
+.skip-panel summary:hover {
+    background: var(--surface);
+    color: var(--text);
+}
+
+.skip-panel summary:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+    border-radius: 10px;
+}
+
+.skip-title {
+    flex: 1;
+}
+
+.skip-summary {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--ok);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Something sensitive will be in the zip. */
+.skip-summary.partial {
+    color: var(--accent);
+}
+
+.skip-panel .chev {
+    color: var(--text-3);
+    transition: transform 0.35s var(--spring);
+}
+
+.skip-panel[open] .chev {
+    transform: rotate(90deg);
+}
+
+.skip-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    cursor: pointer;
+}
+
+.skip-text {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+}
+
+.skip-name {
+    font-size: 12.5px;
+    font-weight: 550;
+    color: var(--text);
+}
+
+.skip-hint {
+    font-size: 11px;
+    color: var(--text-3);
+}
+
+.switch {
+    appearance: none;
+    position: relative;
+    flex: none;
+    width: 30px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--border-strong);
+    cursor: pointer;
+    transition: background 0.2s var(--ease);
+}
+
+.switch::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    transition: transform 0.35s var(--spring);
+}
+
+.switch:checked {
+    background: var(--accent);
+}
+
+.switch:checked::before {
+    transform: translateX(12px);
+}
+
+.switch:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
 }
 
 /* Footer */

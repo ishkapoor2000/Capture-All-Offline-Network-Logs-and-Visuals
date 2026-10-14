@@ -3,6 +3,29 @@
 Each change is its own commit on the `ui-redesign` branch, so any step can be undone on its own.
 List the commits with `git log --oneline main..ui-redesign`.
 
+## 1.0.14: Skip in export (2026-10-14)
+
+A **Skip in export** panel in the popup, with one switch per kind of sensitive data. Both start on. React and
+similar frameworks copy a field's typed value into its `value` attribute, so with nothing skipped, v1.0.13 exports
+held passwords, emails and notes from every keystroke.
+
+- **Typed text**: drops `value` from text, password, email and every other field-type input and textarea, and the
+  text of textareas and rich-text editors (`contenteditable`). Button labels and checkbox/radio values are kept, and
+  typing still shows as "Typed ×12".
+- **Private areas**: drops text and `value` inside `.rr-mask`, `.rr-block` or `[data-private]` (rrweb's markers).
+  Selector, position and size are kept.
+- Switches apply when the zip is built (`exportAllLogs` in `background.js`), to both `logs.json` and
+  `timeline.html`. Capture is unchanged apart from tagging elements `private` / `editable`, so raw values stay in
+  browser storage until export or Clear. The choice is remembered, survives Clear, and is written to `logs.json`
+  as `exportSkip`.
+- No "hidden fields" switch: Chrome hides `input[type=hidden]`, so they never reach interactions or snapshots.
+
+Not covered yet: network request and response headers and bodies are exported as captured (planned next).
+
+| What changed | Checks passed | Undo just this |
+|---|---|---|
+| `content.js`, `background.js`, `popup.html`, `popup.js`, `styles.css`, `manifest.json`, `README.md` | End-to-end test on a React-style form (video mode), one recording exported three ways. Defaults: no typed password, email, note, editor text or private text in `logs.json` interactions/snapshots or `timeline.html`; submit label, checkbox value and button text kept; typing still counted; zip has timeline, logs and video; timeline opens with no errors and lists the clicked button. All off: every value exported. Private areas off only: private text exported, typed text not. Popup: switch saves, summary updates, choice remembered. Hidden inputs confirmed never captured. | `git revert` the v1.0.14 commit (`git log --grep v1.0.14`) |
+
 ## 1.0.13: Motion, and clearer Network / Interactions / Snapshots (2026-10-10)
 
 Motion ideas come from the 21st.dev motion libraries (Motion Primitives, Magic UI, Animate UI and others), rebuilt in plain CSS and a little JS so the exports stay self-contained: sliding tab and filter highlights, spring easing, odometer digits, count-up numbers, blur-in cascades, a cursor spotlight, ripples, a border light while playing or recording, a magnetic play button with a progress ring, and a play/pause icon morph. Everything turns off under "reduce motion".
