@@ -282,7 +282,7 @@ Both are single offline files, work in light and dark, and respect "reduce motio
 
 ## License
 
-Free to use and modify for personal and commercial projects.
+MIT: free to use and modify for personal and commercial projects. See [LICENSE](LICENSE).
 
 ## Support
 
