@@ -3,6 +3,16 @@
 Each change is its own commit on the `ui-redesign` branch, so any step can be undone on its own.
 List the commits with `git log --oneline main..ui-redesign`.
 
+## 1.0.17: Response bodies captured reliably (2026-10-17)
+
+The body was requested when the response headers arrived (`Network.responseReceived`). Chrome refuses
+`getResponseBody` while a response is still streaming, so chunked and slower API responses came out with no body.
+It is now requested at `Network.loadingFinished` (`fetchResponseBody` in `background.js`).
+
+| What changed | Checks passed | Undo just this |
+|---|---|---|
+| `background.js`, `manifest.json` | End-to-end with the real extension: a chunked JSON response from a login POST had no body before and has it now; the default export still leaves it out and the v1.0.16 redaction checks still pass. `node tests/redaction.test.js`. | `git revert` the v1.0.17 commit (`git log --grep v1.0.17`) |
+
 ## 1.0.16: Logins, keys and bodies left out of exports (2026-10-15)
 
 Exports are made to be shared, and the network log went into them as captured: `Authorization` and cookie headers,

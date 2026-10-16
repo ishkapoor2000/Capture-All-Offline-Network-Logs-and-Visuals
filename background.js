@@ -997,7 +997,7 @@ function handleNetworkRequest(params, tabId) {
     console.log('Network request logged:', logEntry.url);
 }
 
-async function handleNetworkResponse(params, tabId) {
+function handleNetworkResponse(params, tabId) {
     const requestIndex = networkLogs.findIndex(log =>
         log.requestId === params.requestId && log.type === 'request'
     );
@@ -1010,52 +1010,49 @@ async function handleNetworkResponse(params, tabId) {
             mimeType: params.response.mimeType,
             timestamp: Date.now()
         };
-
-        // Get response body for JSON/text responses
-        if (params.response.mimeType &&
-            (params.response.mimeType.includes('json') ||
-                params.response.mimeType.includes('javascript') ||
-                params.response.mimeType.includes('text') ||
-                params.response.mimeType.includes('xml'))) {
-
-            try {
-                const responseBody = await chrome.debugger.sendCommand(
-                    { tabId: tabId },
-                    "Network.getResponseBody",
-                    { requestId: params.requestId }
-                );
-
-                if (responseBody && responseBody.body) {
-                    let bodyContent = responseBody.body;
-
-                    // Decode if base64
-                    if (responseBody.base64Encoded) {
-                        try {
-                            bodyContent = atob(responseBody.body);
-                        } catch (e) {
-                            console.warn('Could not decode base64 response');
-                        }
-                    }
-
-                    // Try to parse JSON for better display
-                    if (params.response.mimeType.includes('json')) {
-                        try {
-                            bodyContent = JSON.parse(bodyContent);
-                        } catch (e) {
-                            // Keep as string if not valid JSON
-                        }
-                    }
-
-                    networkLogs[requestIndex].response.body = bodyContent;
-                    networkLogs[requestIndex].response.bodySize = responseBody.body.length;
-                    scheduleSaveNetworkLogs();
-                }
-            } catch (error) {
-                console.warn('Could not get response body for:', networkLogs[requestIndex].url, error.message);
-            }
-        }
-
         console.log('Network response logged:', params.response.status, networkLogs[requestIndex].url);
+    }
+}
+
+// Fetched at loadingFinished: at responseReceived only the headers are in, and Chrome
+// rejects getResponseBody for any response still streaming.
+async function fetchResponseBody(log, requestId, tabId) {
+    const mimeType = log.response && log.response.mimeType;
+    if (!mimeType || !['json', 'javascript', 'text', 'xml'].some(kind => mimeType.includes(kind))) return;
+    try {
+        const responseBody = await chrome.debugger.sendCommand(
+            { tabId: tabId },
+            "Network.getResponseBody",
+            { requestId: requestId }
+        );
+
+        if (responseBody && responseBody.body) {
+            let bodyContent = responseBody.body;
+
+            // Decode if base64
+            if (responseBody.base64Encoded) {
+                try {
+                    bodyContent = atob(responseBody.body);
+                } catch (e) {
+                    console.warn('Could not decode base64 response');
+                }
+            }
+
+            // Try to parse JSON for better display
+            if (mimeType.includes('json')) {
+                try {
+                    bodyContent = JSON.parse(bodyContent);
+                } catch (e) {
+                    // Keep as string if not valid JSON
+                }
+            }
+
+            log.response.body = bodyContent;
+            log.response.bodySize = responseBody.body.length;
+            scheduleSaveNetworkLogs();
+        }
+    } catch (error) {
+        console.warn('Could not get response body for:', log.url, error.message);
     }
 }
 
@@ -1070,6 +1067,7 @@ function handleNetworkLoadingFinished(params, tabId) {
             encodedDataLength: params.encodedDataLength
         };
         console.log('Network loading finished:', networkLogs[requestIndex].url);
+        fetchResponseBody(networkLogs[requestIndex], params.requestId, tabId);
     }
 }
 
