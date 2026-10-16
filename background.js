@@ -1346,7 +1346,8 @@ async function exportAllLogs(tabId, mode) {
 
         const files = [
             { name: `${folder}/timeline.html`, blob: new Blob([htmlContent], { type: 'text/html' }) },
-            { name: `${folder}/logs.json`, blob: new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' }) }
+            { name: `${folder}/logs.json`, blob: new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' }) },
+            { name: `${folder}/repro.md`, blob: new Blob([reproSteps(exportData)], { type: 'text/markdown' }) }
         ];
         if (videoBlob) files.push({ name: `${folder}/${videoFileName}`, videoId: 'current-video' });
 
@@ -1598,6 +1599,10 @@ function generateImprovedTimelineHTML(data) {
         .header p {
             font-size: 12.5px;
             color: var(--text-3);
+        }
+
+        .header-inner > .copy-btn {
+            flex: none;
         }
 
         .version {
@@ -2466,6 +2471,8 @@ function generateImprovedTimelineHTML(data) {
         })();
 
         init();
+        const reproText = ${embedJson(reproSteps(data))};
+        document.querySelector('.header-inner').append(kit.copyButton('Copy repro steps', () => reproText));
         document.querySelectorAll('[data-tick]').forEach((el, i) => kit.ticker(el, 200 + i * 90));
         kit.stagger(Array.from(document.querySelectorAll('.event-pill')), 18);
         kit.spotlight(document.querySelector('.timeline-wrapper'), '.event-pill');
@@ -2747,6 +2754,69 @@ function snapshotModel(snapshot) {
         };
     });
     return { url: String(snapshot.url || ''), vw, vh, els, counts, inView };
+}
+
+// Steps to reproduce as Markdown, for repro.md and the timelines' "Copy repro steps" button. Built from the
+// export's own data, so whatever Skip in export removed stays out. Typed text appears only as a length.
+function reproSteps(data) {
+    const rows = interactionRows(data.interactionLogs || []);
+    const requests = data.networkLogs || [];
+    const t0 = Math.min(...[rows[0] && rows[0].start, requests[0] && requests[0].timestamp].filter(Number.isFinite));
+    const at = t => (Number.isFinite(t0) && Number.isFinite(t) ? ` (+${((t - t0) / 1000).toFixed(1)} s)` : '');
+
+    // "link “Pricing”", "field “Email”": the kind reads better in a sentence than the tag.
+    const name = el => {
+        if (!el) return 'the page';
+        const kind = elementKind(el);
+        const label = elementLabel(el).slice(0, 60);
+        return (kind === 'other' ? String(el.tagName || 'element').toLowerCase() : kind) + (label ? ` “${label}”` : '');
+    };
+    const steps = [];
+    let page = '';
+    rows.forEach(row => {
+        if (row.url && pageKey(row.url) !== page) {
+            steps.push((page ? 'Go to ' : 'Open ') + pageKey(row.url));
+            page = pageKey(row.url);
+        }
+        const target = name(row.log.element);
+        const dy = row.from && row.to ? row.to.y - row.from.y : 0;
+        if (row.type === 'click') steps.push('Click ' + target);
+        else if (row.type === 'input') steps.push('Type in ' + target + (Number.isFinite(row.last.valueLength) ? ` (${row.last.valueLength} characters)` : ''));
+        else if (row.type === 'change') steps.push('Change ' + target);
+        else if (row.type === 'drag') steps.push('Drag ' + target);
+        else if (row.type === 'scroll') steps.push('Scroll' + (dy < 0 ? ' up' : dy > 0 ? ' down' : ''));
+    });
+    if (!steps.length && requests[0]) steps.push('Open ' + pageKey(requests[0].url));
+
+    const failures = requests.map(log => ({ t: log.timestamp, m: requestModel(log) })).filter(f => f.m.err)
+        .map(f => ({ t: f.t, text: `\`${f.m.method} ${f.m.url}\` → ${typeof f.m.status === 'number' ? (f.m.status + ' ' + f.m.statusText).trim() : f.m.error}` }))
+        .concat((data.consoleErrors || []).map(e => ({
+            t: e.timestamp,
+            text: 'Console: ' + String(e.message).split('\n')[0] + (e.url ? ` (${pageKey(e.url)}${e.line ? ':' + e.line : ''})` : '')
+        })))
+        .sort((a, b) => a.t - b.t);
+
+    const withUa = requests.find(r => r.headers && (r.headers['User-Agent'] || r.headers['user-agent']));
+    const ua = withUa ? String(withUa.headers['User-Agent'] || withUa.headers['user-agent']) : '';
+    const browser = /(Edg|Chrome)\/(\d+)/.exec(ua);
+    const os = /\(([^;)]+)/.exec(ua);
+    const viewport = ((data.interactionLogs || []).find(log => log.viewport) || {}).viewport;
+    const env = [
+        browser && (browser[1] === 'Edg' ? 'Edge ' : 'Chrome ') + browser[2],
+        os && os[1],
+        viewport && `window ${viewport.width} × ${viewport.height}`
+    ].filter(Boolean).join(', ');
+
+    return [
+        '## Steps to reproduce', '',
+        ...(steps.length ? steps.map((s, i) => `${i + 1}. ${s}`) : ['No interactions were recorded.']), '',
+        '## What went wrong', '',
+        ...(failures.length ? failures.map(f => `- ${f.text}${at(f.t)}`) : ['- Nothing failed: no HTTP errors, failed requests or console errors were recorded.']), '',
+        '## Environment', '',
+        ...(env ? ['- ' + env] : []),
+        `- Recorded ${new Date(data.exportDate).toLocaleString()} with Capture All${data.extensionVersion ? ' v' + data.extensionVersion : ''}`,
+        ''
+    ].join('\n');
 }
 
 // For <script> embedding: no "</script>" or "<!--" can appear inside.
@@ -4673,6 +4743,10 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             animation: blurIn 0.7s var(--ease-out) 240ms both;
         }
 
+        .topbar > .copy-btn {
+            flex: none;
+        }
+
         .chips {
             display: flex;
             gap: 6px;
@@ -6222,6 +6296,7 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
             .video-container { aspect-ratio: 16 / 10; flex: none; }
             .data-section { border-left: none; border-top: 1px solid var(--line); height: 80vh; }
             .chips { display: none; }
+            .topbar > .copy-btn { margin-left: auto; }
             .shortcuts { display: none; }
             .controls-row { gap: 10px; }
         }
@@ -6338,7 +6413,9 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
     </div>
 
     <script>
-        (${replayApp})(${embedJson(cfg)}, (${exportKit})());
+        const kit = (${exportKit})();
+        (${replayApp})(${embedJson(cfg)}, kit);
+        document.querySelector('.topbar').append(kit.copyButton('Copy repro steps', () => ${embedJson(reproSteps(data))}));
     </script>
 </body>
 </html>`;

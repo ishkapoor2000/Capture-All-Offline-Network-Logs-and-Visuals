@@ -26,7 +26,7 @@ puts that data back in the next export.
 | Logins and keys | Auth and cookie headers; URL parameters, JSON keys and form fields named like a token, key, session, password or signature (they become `REDACTED`), also in URLs inside console messages; `user:password@` in URLs |
 | Request and response bodies | POST data and response bodies (their size stays) |
 
-`logs.json` records which switches were on (`exportSkip`) and how many values were left out (`redacted`). The popup
+`timeline.html` and `repro.md` are built from the same filtered data. `logs.json` records which switches were on (`exportSkip`) and how many values were left out (`redacted`). The popup
 shows the same count after each export.
 
 Matching works on **names**, not content. A token in an oddly named field, or personal data such as a name or

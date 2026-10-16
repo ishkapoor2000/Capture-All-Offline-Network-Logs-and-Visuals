@@ -14,7 +14,9 @@ A Chrome extension that records network logs, user interactions, and DOM element
 
 - **One-click Export → One `.zip`**
   - `capture_all_[timestamp].zip` containing a `capture_all_[timestamp]/` folder with
-    `timeline.html`, `logs.json` and (video mode) `video.webm`
+    `timeline.html`, `logs.json`, `repro.md` and (video mode) `video.webm`
+- **Repro steps**: `repro.md` and a **Copy repro steps** button in the timeline give Markdown ready for a bug
+  report: numbered steps, failed requests and console errors, browser and window size
 - **Parallel Timeline Tracks**
   - Network Requests
   - User Interactions
@@ -94,6 +96,9 @@ One `capture_all_[timestamp].zip` with a `capture_all_[timestamp]/` folder insid
 
 - `logs.json`
   - Raw data for programmatic analysis
+- `repro.md`
+  - Steps to reproduce, what went wrong (HTTP errors, failed requests, console errors) and the environment, as
+    Markdown. Built from the same filtered data as `logs.json`; typed text shows only as a length
 - `video.webm` (video mode only)
 - `timeline.html`
   - Timeline viewer (no external dependencies; in video mode it plays `video.webm` from the same folder)

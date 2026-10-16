@@ -3,6 +3,22 @@
 Each change is its own commit on the `ui-redesign` branch, so any step can be undone on its own.
 List the commits with `git log --oneline main..ui-redesign`.
 
+## 1.0.19: Copy repro steps (2026-10-17)
+
+A bug report starts with steps to reproduce, and people wrote them by hand from the timeline. The export now
+writes them: `repro.md` in the zip, and a **Copy repro steps** button in the header of both timelines.
+
+- Numbered steps from the interactions: open and go-to for each page, click, type (length only), change, drag,
+  scroll. Elements are named by kind and label, like `button “Pay now”` or `field “Email”`.
+- **What went wrong:** HTTP errors, failed requests and console errors in time order, with time since the start.
+- **Environment:** browser and version, OS, window size, recording time and extension version.
+- `reproSteps` in `background.js` builds it from the export's own data, so Skip in export applies to it as well.
+- `tests/redaction.test.js` is now `tests/export.test.js` and also checks the steps.
+
+| What changed | Checks passed | Undo just this |
+|---|---|---|
+| `background.js`, `manifest.json`, `README.md`, `PRIVACY.md`, `CLAUDE.md`, `tests/export.test.js` | `node tests/export.test.js`. End-to-end with the real extension: `repro.md` is in the zip with the typing, clicks and both console errors and no secrets; in both the logs timeline and the replay the button copies with no page errors (screenshots: right end of the header). | `git revert` the v1.0.19 commit (`git log --grep v1.0.19`) |
+
 ## 1.0.18: Console errors (2026-10-17)
 
 The debugger already had the page's `Runtime` domain on and ignored its events. Now `console.error`, failed

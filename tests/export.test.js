@@ -1,5 +1,5 @@
-// Run: node tests/redaction.test.js
-// Loads background.js with every Chrome API stubbed out and checks the export scrubbing.
+// Run: node tests/export.test.js
+// Loads background.js with every Chrome API stubbed out and checks the export scrubbing and repro steps.
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -13,7 +13,7 @@ const stub = new Proxy(function () {}, {
 });
 const context = vm.createContext({ chrome: stub, self: stub, indexedDB: stub, console: { log() {}, warn() {}, error() {} }, URL, Blob: stub, setTimeout, Promise });
 vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'background.js'), 'utf8'), context);
-const { scrubNetwork, scrubCapture, EXPORT_SKIP_DEFAULTS } = vm.runInContext('({ scrubNetwork, scrubCapture, EXPORT_SKIP_DEFAULTS })', context);
+const { scrubNetwork, scrubCapture, reproSteps, EXPORT_SKIP_DEFAULTS } = vm.runInContext('({ scrubNetwork, scrubCapture, reproSteps, EXPORT_SKIP_DEFAULTS })', context);
 
 const log = () => ({
     type: 'request',
@@ -102,4 +102,33 @@ const leaks = text => ['abc123', 'pw@', 'xyz', 'Bearer', 's1', 'hunter2', 'k1', 
     assert.strictEqual(redactUrl('Save failed for /api?token=t5 Object', redacted), 'Save failed for /api?token=REDACTED Object');
 }
 
-console.log('redaction: all checks passed');
+// Repro steps: what the user did, then what failed, in time order.
+{
+    const page = 'https://shop.example.com/cart';
+    const button = { tagName: 'BUTTON', text: 'Pay now', attributes: {} };
+    const field = { tagName: 'INPUT', attributes: { type: 'text', placeholder: 'Card number' }, selector: '#card' };
+    const md = reproSteps({
+        exportDate: '2026-10-17T10:00:00.000Z',
+        extensionVersion: '9.9.9',
+        interactionLogs: [
+            { type: 'input', timestamp: 1000, url: page, element: field, valueLength: 4, viewport: { width: 1280, height: 720 } },
+            { type: 'input', timestamp: 1500, url: page, element: field, valueLength: 16 },
+            { type: 'click', timestamp: 2000, url: page, element: button },
+            { type: 'scroll', timestamp: 2500, url: page + '/done', scrollPosition: { x: 0, y: 300 } },
+        ],
+        networkLogs: [
+            { timestamp: 900, url: page, method: 'GET', headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/131.0.0.0 Safari/537.36' }, response: { status: 200, mimeType: 'text/html', timestamp: 950 } },
+            { timestamp: 2100, url: 'https://shop.example.com/api/pay', method: 'POST', response: { status: 502, statusText: 'Bad Gateway', mimeType: 'application/json', timestamp: 2300 } },
+        ],
+        consoleErrors: [{ timestamp: 2350, message: 'TypeError: x is undefined\n    at pay (app.js:9)', url: 'https://shop.example.com/app.js', line: 9 }],
+    });
+    assert.ok(md.includes('1. Open https://shop.example.com/cart\n2. Type in field “Card number” (16 characters)\n3. Click button “Pay now”\n4. Go to https://shop.example.com/cart/done\n5. Scroll\n'), md);
+    assert.ok(md.includes('- `POST https://shop.example.com/api/pay` → 502 Bad Gateway (+1.2 s)\n- Console: TypeError: x is undefined (https://shop.example.com/app.js:9) (+1.4 s)'), md);
+    assert.ok(md.includes('- Chrome 131, Macintosh, window 1280 × 720'), md);
+    assert.ok(md.includes('Capture All v9.9.9'), md);
+
+    const empty = reproSteps({ exportDate: '2026-10-17T10:00:00.000Z' });
+    assert.ok(empty.includes('No interactions were recorded.') && empty.includes('Nothing failed'), empty);
+}
+
+console.log('export: all checks passed');
