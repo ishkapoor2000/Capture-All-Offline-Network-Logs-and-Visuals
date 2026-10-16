@@ -258,14 +258,18 @@ Both are single offline files, work in light and dark, and respect "reduce motio
 
 - All data is stored locally in your browser
 - Nothing is sent to external servers
-- **Skip in export** (popup): switches that decide what the exported zip leaves out. Both start on.
+- **Skip in export** (popup): switches that decide what the exported zip leaves out. All start on.
   - *Typed text*: field values (including the `value` attribute that frameworks like React fill with what
     you type, passwords too), and the text of textareas and rich-text editors. Button labels and checkbox or
     radio values are kept. Typing still shows as a character count.
   - *Private areas*: text and values inside `.rr-mask`, `.rr-block` or `[data-private]` elements.
+  - *Logins and keys*: auth and cookie headers, and URL parameters, JSON keys and form fields named like a token,
+    key, session, password or signature, in requests, page URLs and links. They become `REDACTED`.
+  - *Request and response bodies*: POST data and response bodies. Their size is kept.
   - The switches apply at export. What was captured stays in browser storage until you export or press Clear.
-    `logs.json` records which switches were on (`exportSkip`).
-- Network requests and responses are still exported as captured, including headers and bodies
+    `logs.json` records which switches were on (`exportSkip`) and how many values were left out (`redacted`).
+- Matching is by name, so personal data inside pages or kept bodies isn't detected, and video can't be redacted.
+  Details, and notes for IT administrators: [PRIVACY.md](PRIVACY.md).
 
 ## Roadmap
 

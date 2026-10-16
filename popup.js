@@ -114,7 +114,7 @@ function showModeInfo() {
 	} else {
 		showPageInfo(recordingMode === 'logs'
 			? 'Records network requests and interactions'
-			: 'Records the tab as video, plus requests and interactions');
+			: 'Records the tab as video, plus requests and interactions. Video shows everything on screen; Skip in export can\'t hide it.');
 	}
 }
 
@@ -396,7 +396,9 @@ async function exportLogs() {
 		if (!response || !response.success) {
 			throw new Error(response?.error || 'Export failed');
 		}
-		showNotification('Export ready - choose where to save the .zip', 'success');
+		const { secrets = 0, bodies = 0 } = response.redacted || {};
+		const left = [secrets && `${secrets} login/key value${secrets === 1 ? '' : 's'}`, bodies && `${bodies} bod${bodies === 1 ? 'y' : 'ies'}`].filter(Boolean);
+		showNotification('Export ready - choose where to save the .zip' + (left.length ? `. Left out: ${left.join(', ')}` : ''), 'success');
 	} catch (error) {
 		console.error('Export failed:', error);
 		showNotification('Export failed: ' + error.message, 'error');

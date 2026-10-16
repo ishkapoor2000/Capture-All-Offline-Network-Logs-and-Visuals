@@ -879,7 +879,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case 'exportLogs':
             exportAllLogs(message.tabId, message.mode || 'logs')
-                .then(() => sendResponse({ success: true }))
+                .then(redacted => sendResponse({ success: true, redacted }))
                 .catch(error => sendResponse({ success: false, error: error.message }));
             return true;
 
@@ -1115,12 +1115,92 @@ async function stopRecording(tabId) {
 }
 
 // "Skip in export" switches in the popup; true leaves that kind of data out of the export.
-const EXPORT_SKIP_DEFAULTS = { typedText: true, privateAreas: true };
+const EXPORT_SKIP_DEFAULTS = { typedText: true, privateAreas: true, credentials: true, bodies: true };
 // Inputs of these types hold a fixed value (a button label, a checkbox's form value). Any other input's
 // value is what the user typed, and React mirrors it into the value attribute, passwords included.
 const FIXED_VALUE_TYPES = ['button', 'submit', 'reset', 'image', 'checkbox', 'radio'];
+// Header, URL-parameter and JSON-key names that usually carry a login or a key. Errs towards removing too much.
+const SECRET_NAME = /auth|token|secret|session|passw|pwd|api[-_]?key|csrf|xsrf|cookie|signature|jwt|^key$|^sig$|^otp$/i;
+const REDACTED = 'REDACTED';
 
-function scrubElement(el, skip) {
+// Works on absolute and relative URLs alike and leaves the rest of the URL byte for byte.
+// The fragment counts too: OAuth puts tokens after '#', and window.location.href keeps it.
+function redactUrl(url, redacted) {
+    if (typeof url !== 'string') return url;
+    return url
+        .replace(/^([a-z][\w+.-]*:\/\/)[^/?#@]*@/i, (m, scheme) => { redacted.secrets++; return scheme; })
+        .replace(/([?&#])([^=&#]+)=([^&#]*)/g, (m, sep, name) => {
+            if (!SECRET_NAME.test(name)) return m;
+            redacted.secrets++;
+            return `${sep}${name}=${REDACTED}`;
+        });
+}
+
+function redactHeaders(headers, redacted) {
+    if (!headers || typeof headers !== 'object') return headers;
+    const out = {};
+    for (const [name, value] of Object.entries(headers)) {
+        if (SECRET_NAME.test(name)) {
+            out[name] = REDACTED;
+            redacted.secrets++;
+        } else {
+            out[name] = /^(referer|location)$/i.test(name) ? redactUrl(String(value), redacted) : value;
+        }
+    }
+    return out;
+}
+
+function redactKeys(value, redacted) {
+    if (Array.isArray(value)) return value.map(v => redactKeys(v, redacted));
+    if (!value || typeof value !== 'object') return value;
+    const out = {};
+    for (const [key, v] of Object.entries(value)) {
+        if (SECRET_NAME.test(key)) {
+            out[key] = REDACTED;
+            redacted.secrets++;
+        } else {
+            out[key] = redactKeys(v, redacted);
+        }
+    }
+    return out;
+}
+
+// A body is a parsed JSON value, a JSON string, a form-encoded string, or other text left as it is.
+function redactBody(body, redacted) {
+    if (typeof body !== 'string') return redactKeys(body, redacted);
+    const before = redacted.secrets;
+    try {
+        const out = redactKeys(JSON.parse(body), redacted);
+        return redacted.secrets > before ? JSON.stringify(out) : body;
+    } catch (e) {
+        // Not JSON.
+    }
+    return /^[^\s=&]+=\S*$/.test(body) ? redactUrl('?' + body, redacted).slice(1) : body;
+}
+
+function scrubNetwork(logs, skip, redacted) {
+    return logs.map(log => {
+        const out = { ...log };
+        const res = log.response ? { ...log.response } : null;
+        if (skip.bodies) {
+            if (out.postData != null) { delete out.postData; redacted.bodies++; }
+            if (res && res.body != null) { delete res.body; redacted.bodies++; }
+        }
+        if (skip.credentials) {
+            out.url = redactUrl(out.url, redacted);
+            out.headers = redactHeaders(out.headers, redacted);
+            if (out.postData != null) out.postData = redactBody(out.postData, redacted);
+            if (res) {
+                res.headers = redactHeaders(res.headers, redacted);
+                if (res.body != null) res.body = redactBody(res.body, redacted);
+            }
+        }
+        if (res) out.response = res;
+        return out;
+    });
+}
+
+function scrubElement(el, skip, redacted) {
     if (!el || typeof el !== 'object' || !el.tagName) return el;
     const tag = String(el.tagName).toUpperCase();
     const type = String((el.attributes && el.attributes.type) || 'text').toLowerCase();
@@ -1132,19 +1212,26 @@ function scrubElement(el, skip) {
     if ((skip.typedText && (tag === 'TEXTAREA' || el.editable)) || (skip.privateAreas && el.private)) {
         out.text = null;
     }
+    if (skip.credentials) {
+        if (out.attributes.href) out.attributes.href = redactUrl(out.attributes.href, redacted);
+        if (out.attributes.src) out.attributes.src = redactUrl(out.attributes.src, redacted);
+    }
     return out;
 }
 
-function scrubCapture(interactionLogs, elementSnapshots, skip) {
+function scrubCapture(interactionLogs, elementSnapshots, skip, redacted) {
+    const pageUrl = url => skip.credentials ? redactUrl(url, redacted) : url;
     return {
         interactionLogs: interactionLogs.map(log => ({
             ...log,
-            element: scrubElement(log.element, skip),
-            scrollTarget: scrubElement(log.scrollTarget, skip)
+            url: pageUrl(log.url),
+            element: scrubElement(log.element, skip, redacted),
+            scrollTarget: scrubElement(log.scrollTarget, skip, redacted)
         })),
         elementSnapshots: elementSnapshots.map(snap => ({
             ...snap,
-            elements: (snap.elements || []).map(el => scrubElement(el, skip))
+            url: pageUrl(snap.url),
+            elements: (snap.elements || []).map(el => scrubElement(el, skip, redacted))
         }))
     };
 }
@@ -1167,7 +1254,10 @@ async function exportAllLogs(tabId, mode) {
         // Get interaction logs and element snapshots from chrome.storage
         const result = await chrome.storage.local.get(['interactionLogs', 'elementSnapshots', 'videoRecordingStartTime', 'exportSkip']);
         const exportSkip = { ...EXPORT_SKIP_DEFAULTS, ...(result.exportSkip || {}) };
-        const { interactionLogs, elementSnapshots } = scrubCapture(result.interactionLogs || [], result.elementSnapshots || [], exportSkip);
+        // How many values each switch left out: logs.json records it and the popup shows it.
+        const redacted = { secrets: 0, bodies: 0 };
+        const exportedNetworkLogs = scrubNetwork(networkLogs, exportSkip, redacted);
+        const { interactionLogs, elementSnapshots } = scrubCapture(result.interactionLogs || [], result.elementSnapshots || [], exportSkip, redacted);
         // When video began (video t=0). Used to align the timeline with the video player.
         const videoStartTime = result.videoRecordingStartTime || null;
 
@@ -1193,8 +1283,9 @@ async function exportAllLogs(tabId, mode) {
             tabId: tabId,
             mode: mode,
             exportSkip: exportSkip,
+            redacted: redacted,
             videoStartTime: videoStartTime,
-            networkLogs: networkLogs,
+            networkLogs: exportedNetworkLogs,
             interactionLogs: interactionLogs,
             elementSnapshots: elementSnapshots,
             videoData: videoBlob ? {
@@ -1203,7 +1294,7 @@ async function exportAllLogs(tabId, mode) {
                 videoSize: videoBlob.size
             } : { hasVideo: false },
             summary: {
-                totalNetworkRequests: networkLogs.length,
+                totalNetworkRequests: exportedNetworkLogs.length,
                 totalInteractions: interactionLogs.length,
                 totalElementSnapshots: elementSnapshots.length
             }
@@ -1222,6 +1313,7 @@ async function exportAllLogs(tabId, mode) {
         await videoStoreRequest('readwrite', store => store.put({ id: 'pending-export', files }));
         await downloadViaOffscreen({ exportId: 'pending-export' }, `${folder}.zip`);
         console.log('[Export] Zip export started:', `${folder}.zip`);
+        return redacted;
     } catch (error) {
         console.error('[Export] Error exporting logs:', error);
         throw error;

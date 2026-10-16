@@ -3,6 +3,25 @@
 Each change is its own commit on the `ui-redesign` branch, so any step can be undone on its own.
 List the commits with `git log --oneline main..ui-redesign`.
 
+## 1.0.16: Logins, keys and bodies left out of exports (2026-10-15)
+
+Exports are made to be shared, and the network log went into them as captured: `Authorization` and cookie headers,
+tokens in URLs, login POST data and every API response. Two more **Skip in export** switches, both on by default:
+
+- **Logins and keys:** auth and cookie headers, and URL parameters, JSON keys and form fields whose name looks like a
+  token, key, session, password or signature, become `REDACTED`. This covers request and response headers, the
+  `Referer` and `Location` URLs, `user:password@` in URLs, URL fragments (OAuth tokens), page URLs of interactions
+  and snapshots, and `href` / `src` of captured elements.
+- **Request and response bodies:** POST data and response bodies are left out; their size stays in the timeline.
+- `logs.json` gets `redacted: { secrets, bodies }`, and the popup's export message says how many were left out.
+- Video mode's description warns that video can't be redacted.
+- `PRIVACY.md`: what is recorded, what the switches remove, the limits of name matching, and notes for IT admins.
+- `tests/redaction.test.js` (`node tests/redaction.test.js`) checks the scrubbing with the Chrome APIs stubbed out.
+
+| What changed | Checks passed | Undo just this |
+|---|---|---|
+| `background.js`, `popup.js`, `popup.html`, `manifest.json`, `README.md`, `PRIVACY.md`, `tests/`, `CLAUDE.md` | `node tests/redaction.test.js`. End-to-end with the real extension: a page sending an `Authorization` header, a login POST, `?token=` and `#access_token=` in the page URL, a signed link; the default export's `logs.json` and `timeline.html` contain none of the secrets and no bodies, and with all switches off they all come back. Popup shows the four switches and the summary. | `git revert` the v1.0.16 commit (`git log --grep v1.0.16`) |
+
 ## 1.0.15: Start from any tab (2026-10-14)
 
 Chrome keeps every extension off its own pages (New Tab, Settings, History, Extensions, the Web Store). The popup

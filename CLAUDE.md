@@ -11,6 +11,7 @@ No build step — plain JS, loaded unpacked.
 - After editing `background.js` or `manifest.json`, hit **Reload** on the extension card.
 - After editing `content.js`, reload the extension *and* the target page.
 - Bump `version` in `manifest.json` for any user-visible change.
+- Test export scrubbing: `node tests/redaction.test.js`.
 
 ## Files
 - `manifest.json` — MV3 manifest. Permissions: `activeTab, storage, tabs, scripting,
