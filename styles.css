@@ -318,9 +318,7 @@ h1 {
     margin-top: -4px;
     font-size: 12px;
     color: var(--text-3);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    text-wrap: pretty;
 }
 
 .page-info.is-error {

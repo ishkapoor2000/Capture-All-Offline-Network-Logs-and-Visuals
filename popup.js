@@ -5,6 +5,9 @@ let isRecording = false;
 let recordingMode = 'video'; // 'logs' or 'video' - Default to 'video' for video + logs feature
 let videoRecordingStartTime = null;
 let videoDurationInterval = null;
+// From the background: 'ok', 'chrome' (Chrome blocks its own pages) or 'file-off'; and this tab's armed session.
+let pageAccess = 'ok';
+let armed = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
 	// The version Chrome actually loaded - shows at a glance whether a Reload picked up new code.
@@ -16,20 +19,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 	const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 	currentTabId = tab.id;
 
-	// Check if it's a recordable page
-	if (isRestrictedPage(tab.url)) {
-		document.getElementById('startBtn').disabled = true;
-		document.getElementById('captureBtn').disabled = true;
-		showPageInfo('Cannot record on browser internal pages', true);
-	} else {
-		try {
-			const hostname = new URL(tab.url).hostname;
-			showPageInfo(`Ready to record ${hostname}`);
-		} catch (e) {
-			showPageInfo('Ready to record');
-		}
-	}
-
 	// Set up mode tab listeners
 	document.getElementById('logModeTab').addEventListener('click', () => switchMode('logs'));
 	document.getElementById('videoModeTab').addEventListener('click', () => switchMode('video'));
@@ -38,8 +27,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 	switchMode('video');
 
 	// Update initial status
-	updateStatus();
+	const status = await updateStatus();
 	updateStats();
+
+	// Opening the popup on an armed tab that reached a website is the click Chrome needs before it allows tab video.
+	if (status && status.armed && status.armed.ready && status.access === 'ok' && !status.isRecording) {
+		switchMode(status.armed.mode);
+		startRecording();
+	}
 
 	// Set up button listeners
 	document.getElementById('startBtn').addEventListener('click', startRecording);
@@ -85,14 +80,6 @@ async function applyPendingUpdate() {
 	}
 }
 
-function isRestrictedPage(url) {
-	return url.startsWith('chrome://') ||
-		url.startsWith('chrome-extension://') ||
-		url.startsWith('edge://') ||
-		url.startsWith('about:') ||
-		url.startsWith('view-source:');
-}
-
 function switchMode(mode) {
 	if (isRecording) {
 		showNotification('Stop recording before switching modes', 'error');
@@ -109,10 +96,37 @@ function switchMode(mode) {
 
 	if (mode === 'logs') {
 		document.getElementById('videoInfoCard').style.display = 'none';
-		showPageInfo('Records network requests and interactions');
-	} else {
-		showPageInfo('Records the tab as video, plus requests and interactions');
 	}
+	if (armed && armed.mode !== mode) {
+		chrome.runtime.sendMessage({ action: 'armSession', tabId: currentTabId, mode }).then(updateStatus);
+	}
+	showModeInfo();
+}
+
+function showModeInfo() {
+	if (pageAccess === 'file-off') {
+		showPageInfo('Turn on "Allow access to file URLs" to record local files', true);
+	} else if (pageAccess === 'chrome' && !isRecording) {
+		const mode = armed ? armed.mode : recordingMode;
+		if (!armed) showPageInfo('Chrome blocks recording its own pages. Recording starts when this tab opens a website.');
+		else if (mode === 'video') showPageInfo('Waiting for a website. Then click the Capture All icon to start.');
+		else showPageInfo('Waiting for a website. Recording starts when it opens.');
+	} else {
+		showPageInfo(recordingMode === 'logs'
+			? 'Records network requests and interactions'
+			: 'Records the tab as video, plus requests and interactions');
+	}
+}
+
+// Start's label and state follow the page: record, arm on a Chrome page, cancel an arm, or fix file access.
+function renderStart() {
+	let label = 'Start recording';
+	if (!isRecording && pageAccess === 'chrome') label = armed ? 'Cancel' : 'Start on next website';
+	if (!isRecording && pageAccess === 'file-off') label = 'Open file access settings';
+	document.getElementById('startLabel').textContent = label;
+	document.getElementById('startBtn').disabled = isRecording;
+	document.getElementById('stopBtn').disabled = !isRecording;
+	document.getElementById('captureBtn').disabled = pageAccess !== 'ok';
 }
 
 function showPageInfo(message, isError = false) {
@@ -175,7 +189,7 @@ function setDigits(el, text) {
 
 async function updateStatus() {
 	try {
-		const response = await chrome.runtime.sendMessage({ action: 'getStatus' });
+		const response = await chrome.runtime.sendMessage({ action: 'getStatus', tabId: currentTabId });
 
 		if (chrome.runtime.lastError) {
 			console.warn('Could not get status:', chrome.runtime.lastError);
@@ -184,25 +198,25 @@ async function updateStatus() {
 
 		if (response) {
 			isRecording = response.isRecording;
+			pageAccess = response.access || 'ok';
+			armed = response.armed;
 			const statusDot = document.getElementById('statusDot');
 			const statusText = document.getElementById('statusText');
-			const startBtn = document.getElementById('startBtn');
-			const stopBtn = document.getElementById('stopBtn');
 
 			if (isRecording) {
 				statusDot.classList.add('recording');
 				if (statusText.textContent !== 'Recording') replay(statusText, 'swap');
 				statusText.textContent = 'Recording';
-				startBtn.disabled = true;
-				stopBtn.disabled = false;
 			} else {
 				statusDot.classList.remove('recording');
-				if (statusText.textContent !== 'Ready') replay(statusText, 'swap');
-				statusText.textContent = 'Ready';
-				startBtn.disabled = false;
-				stopBtn.disabled = true;
+				const idle = armed ? 'Waiting' : 'Ready';
+				if (statusText.textContent !== idle) replay(statusText, 'swap');
+				statusText.textContent = idle;
 			}
+			renderStart();
+			showModeInfo();
 		}
+		return response;
 	} catch (error) {
 		console.error('Error updating status:', error);
 	}
@@ -257,8 +271,18 @@ async function startRecording() {
 		const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 		currentTabId = tab.id;
 
-		if (isRestrictedPage(tab.url)) {
-			showNotification('Cannot record on browser internal pages', 'error');
+		if (pageAccess === 'file-off') {
+			chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` });
+			return;
+		}
+		if (pageAccess === 'chrome') {
+			await chrome.runtime.sendMessage(armed
+				? { action: 'cancelArm' }
+				: { action: 'armSession', tabId: currentTabId, mode: recordingMode });
+			showNotification(armed ? 'Cancelled'
+				: recordingMode === 'video' ? 'Open a website, then click the Capture All icon'
+				: 'Recording starts when this tab opens a website', 'success');
+			updateStatus();
 			return;
 		}
 

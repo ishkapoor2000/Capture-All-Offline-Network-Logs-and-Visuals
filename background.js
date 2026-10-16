@@ -476,6 +476,7 @@ async function stopVideoCapture(tabId) {
  * @returns {Promise<{success: boolean, interactions: boolean}>}
  */
 async function startSession(tabId, mode) {
+    await clearArm();
     const { recordingState } = await chrome.storage.local.get(['recordingState']);
     if (recordingState && recordingState.isRecording) {
         console.log('[Session] Existing recording detected, stopping it first...');
@@ -532,6 +533,81 @@ async function stopSession(fallbackTabId) {
     }
     return { success: true, mode, stored };
 }
+
+/**
+ * Chrome keeps every extension off its own pages (New Tab, Settings, the Web Store...).
+ * @returns {Promise<'ok'|'chrome'|'file-off'>} 'file-off': a local file while "Allow access to file URLs" is off
+ */
+async function pageAccess(url) {
+    let page;
+    try {
+        page = new URL(url || '');
+    } catch (e) {
+        return 'chrome';
+    }
+    const store = page.hostname === 'chromewebstore.google.com' ||
+        (page.hostname === 'chrome.google.com' && page.pathname.startsWith('/webstore')) ||
+        (page.hostname === 'microsoftedge.microsoft.com' && page.pathname.startsWith('/addons'));
+    if (store) return 'chrome';
+    if (page.protocol === 'http:' || page.protocol === 'https:') return 'ok';
+    if (page.protocol === 'file:') return (await chrome.extension.isAllowedFileSchemeAccess()) ? 'ok' : 'file-off';
+    return 'chrome';
+}
+
+// "Start on next website": a tab on a Chrome page waits for a website. Kept in storage because the
+// service worker can stop while the user types the address.
+async function armSession(tabId, mode) {
+    await chrome.storage.local.set({ armedSession: { tabId, mode, ready: false } });
+    await setTabBadge(tabId, 'WAIT', 'Capture All: waiting for a website in this tab');
+}
+
+async function clearArm() {
+    const { armedSession } = await chrome.storage.local.get(['armedSession']);
+    if (!armedSession) return;
+    await chrome.storage.local.remove('armedSession');
+    await setTabBadge(armedSession.tabId, '', 'Capture All');
+}
+
+async function setTabBadge(tabId, text, title) {
+    try {
+        await chrome.action.setBadgeText({ tabId, text });
+        if (text) await chrome.action.setBadgeBackgroundColor({ tabId, color: '#ce2c31' });
+        await chrome.action.setTitle({ tabId, title });
+    } catch (error) {
+        // The tab is gone.
+    }
+}
+
+// Chrome clears a tab's badge on every page load, so it is set again once the load completes.
+async function handleArmedTab(tabId, status, url) {
+    const { armedSession } = await chrome.storage.local.get(['armedSession']);
+    if (!armedSession || armedSession.tabId !== tabId) return;
+    const ok = await pageAccess(url) === 'ok';
+    if (ok && armedSession.mode === 'logs') {
+        try {
+            await startSession(tabId, 'logs');
+        } catch (error) {
+            console.error('[Arm] Could not start recording:', error);
+            await setTabBadge(tabId, 'ERR', 'Capture All could not start recording: ' + error.message);
+        }
+        return;
+    }
+    if (status !== 'complete') return;
+    // Video needs a click on the extension on the page itself: Chrome grants tab capture only then.
+    await chrome.storage.local.set({ armedSession: { ...armedSession, ready: ok } });
+    await setTabBadge(tabId, ok ? '▶' : 'WAIT', ok
+        ? 'Capture All: click to start recording'
+        : 'Capture All: waiting for a website in this tab');
+}
+
+// One at a time, so two quick updates of the armed tab can't start two sessions.
+let armQueue = Promise.resolve();
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (!changeInfo.status) return;
+    armQueue = armQueue
+        .then(() => handleArmedTab(tabId, changeInfo.status, tab.url))
+        .catch(error => console.warn('[Arm]', error));
+});
 
 // content.js lives only as long as the page: after a full page load of the recorded tab, add it
 // again. Its init() asks getStatus and resumes recording interactions by itself.
@@ -762,18 +838,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 .catch(error => sendResponse({ success: false, error: error.message }));
             return true;
 
+        case 'armSession':
+            armSession(message.tabId, message.mode)
+                .then(() => sendResponse({ success: true }))
+                .catch(error => sendResponse({ success: false, error: error.message }));
+            return true;
+
+        case 'cancelArm':
+            clearArm()
+                .then(() => sendResponse({ success: true }))
+                .catch(error => sendResponse({ success: false, error: error.message }));
+            return true;
+
         case 'getStatus':
             // Read the persisted flag so status is correct even after a SW restart (when the
             // in-memory isRecording would be false while a recording is still running).
             (async () => {
                 try {
                     await networkLogsReady;
-                    const { recordingState } = await chrome.storage.local.get(['recordingState']);
+                    const { recordingState, armedSession } = await chrome.storage.local.get(['recordingState', 'armedSession']);
                     const active = !!(recordingState && recordingState.isRecording) || isRecording;
+                    // The popup passes its tab: whether Chrome lets us record it, and whether it is armed.
+                    let access = null;
+                    if (message.tabId != null) {
+                        const tab = await chrome.tabs.get(message.tabId).catch(() => null);
+                        access = tab ? await pageAccess(tab.url || tab.pendingUrl) : null;
+                    }
                     sendResponse({
                         isRecording: active,
                         mode: recordingState ? recordingState.mode : null,
-                        networkLogsCount: networkLogs.length
+                        networkLogsCount: networkLogs.length,
+                        access,
+                        armed: armedSession && armedSession.tabId === message.tabId ? armedSession : null
                     });
                 } catch (e) {
                     sendResponse({ isRecording: isRecording, networkLogsCount: networkLogs.length });
@@ -6315,6 +6411,9 @@ function clearAllLogs() {
 }
 
 chrome.tabs.onRemoved.addListener((tabId) => {
+    chrome.storage.local.get(['armedSession']).then(({ armedSession }) => {
+        if (armedSession && armedSession.tabId === tabId) chrome.storage.local.remove('armedSession');
+    });
     if (attachedTabs.has(tabId)) {
         stopRecording(tabId).catch(err => console.error('Error cleaning up tab:', err));
     }

@@ -75,6 +75,18 @@ A Chrome extension that records network logs, user interactions, and DOM element
 6. Click “Export Logs” and choose where to save the `.zip`.
    - Unzip it and open `timeline.html` in any browser (keep it next to `video.webm`).
 
+**Starting from a New Tab or another Chrome page.** Chrome doesn't let any extension record its own pages
+(New Tab, Settings, History, Extensions, the Web Store). There the button reads **Start on next website**:
+press it and the tab waits (badge `WAIT`).
+- Logs only: recording starts by itself when the tab opens a website. Only that page's own HTML request is
+  missed, because it goes out before Chrome lets the extension attach.
+- Video + logs: Chrome allows tab video only after you click the extension on the page itself. When the website
+  has loaded, the badge shows `▶`; click the Capture All icon and recording starts straight away.
+- Press **Cancel** to stop waiting. Closing the tab also cancels.
+
+**Local files** (`file://`): turn on "Allow access to file URLs" for Capture All. The popup shows an
+**Open file access settings** button when it's off.
+
 ## Exported Files
 
 One `capture_all_[timestamp].zip` with a `capture_all_[timestamp]/` folder inside:
@@ -231,6 +243,8 @@ Both are single offline files, work in light and dark, and respect "reduce motio
 
 - Recording won’t start
   - Another debugger may be attached. Refresh the page and try again.
+- "Chrome blocks recording its own pages"
+  - Expected on New Tab, Settings, the Web Store and other Chrome pages. Use **Start on next website** (see Usage).
 - Missing interaction events
   - Content script injection may have failed on restricted pages (e.g., chrome://)
 - Network count not updating

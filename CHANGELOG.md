@@ -3,6 +3,28 @@
 Each change is its own commit on the `ui-redesign` branch, so any step can be undone on its own.
 List the commits with `git log --oneline main..ui-redesign`.
 
+## 1.0.15: Start from any tab (2026-10-14)
+
+Chrome keeps every extension off its own pages (New Tab, Settings, History, Extensions, the Web Store). The popup
+used to switch Start back on every 2 seconds there and hide the warning, so people only found out after clicking.
+The most common way to begin, opening a New Tab and then the site, didn't work at all.
+
+- On a Chrome page, the popup says so and Start becomes **Start on next website**. It arms the tab (badge `WAIT`,
+  status "Waiting"); **Cancel** or closing the tab stops waiting.
+- **Logs only:** recording starts by itself as soon as the tab begins loading a website. Only that page's own HTML
+  request is missed, because Chrome lets the debugger attach only after it has gone out.
+- **Video + logs:** Chrome allows tab video only after a click on the extension on the page itself. When the website
+  has loaded, the badge turns to `▶`, and opening the popup there starts video and logs straight away.
+- **Local files** with "Allow access to file URLs" off: the popup explains it, and Start opens the extension's
+  settings page.
+- One check decides what can be recorded (`pageAccess` in `background.js`): `http`, `https`, and `file` when allowed.
+  The Chrome and Edge web stores and every other scheme count as Chrome pages. It replaces the popup's own list.
+- The page info line wraps instead of cutting off.
+
+| What changed | Checks passed | Undo just this |
+|---|---|---|
+| `background.js`, `popup.js`, `popup.html`, `styles.css`, `manifest.json`, `README.md` | End-to-end test with the real extension: page classification (websites, `localhost`, `chrome://`, Web Store, `about:`, `file:`, junk); on a Chrome page the popup shows the right text and label, Capture is off, and the label survives the 2 s refresh; Logs arm shows `WAIT`, then the tab navigates to a site and recording starts with no click, capturing the page's fetch and clicks; Video arm turns ready with `▶` and starts nothing on its own, and a start clears arm and badge; Cancel and tab close clear the arm; `getStatus` reports website vs Chrome page. The v1.0.14 export test still passes (video recording, export, timeline, switches). | `git revert` the v1.0.15 commit (`git log --grep v1.0.15`) |
+
 ## 1.0.14: Skip in export (2026-10-14)
 
 A **Skip in export** panel in the popup, with one switch per kind of sensitive data. Both start on. React and
