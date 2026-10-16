@@ -1109,7 +1109,7 @@ function remoteText(arg) {
 // shortcut: keeps the first 1000 errors of a session, so a page failing in a loop can't fill storage.
 const MAX_CONSOLE_ERRORS = 1000;
 
-// Chrome replays errors logged before Start when the debugger attaches, so their own time is kept.
+// The page's own time, not when the event reached the extension.
 function handleConsoleError(timestamp, message, stackTrace, fallback, tabId) {
     if (consoleErrors.length >= MAX_CONSOLE_ERRORS) return;
     const where = (stackTrace && stackTrace.callFrames && stackTrace.callFrames[0]) || fallback || {};
@@ -2798,12 +2798,13 @@ function reproSteps(data) {
 
     const withUa = requests.find(r => r.headers && (r.headers['User-Agent'] || r.headers['user-agent']));
     const ua = withUa ? String(withUa.headers['User-Agent'] || withUa.headers['user-agent']) : '';
-    const browser = /(Edg|Chrome)\/(\d+)/.exec(ua);
-    const os = /\(([^;)]+)/.exec(ua);
+    // Edge's User-Agent also says Chrome/, and Android's also says Linux, so those are checked first.
+    const browser = /(Edg)\/(\d+)/.exec(ua) || /(Chrome)\/(\d+)/.exec(ua);
+    const os = /Android/.exec(ua) || /Windows|Mac OS X|CrOS|Linux/.exec(ua);
     const viewport = ((data.interactionLogs || []).find(log => log.viewport) || {}).viewport;
     const env = [
         browser && (browser[1] === 'Edg' ? 'Edge ' : 'Chrome ') + browser[2],
-        os && os[1],
+        os && os[0],
         viewport && `window ${viewport.width} × ${viewport.height}`
     ].filter(Boolean).join(', ');
 

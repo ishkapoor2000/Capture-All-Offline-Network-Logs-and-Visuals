@@ -3,6 +3,16 @@
 Each change is its own commit on the `ui-redesign` branch, so any step can be undone on its own.
 List the commits with `git log --oneline main..ui-redesign`.
 
+## 1.0.20: Right browser and OS in repro steps (2026-10-17)
+
+Found in review. Edge's User-Agent also contains `Chrome/`, so Edge users were reported as Chrome; Linux showed as
+`X11`. Edge and Android are now checked first, and the OS is matched by name (Windows, Mac OS X, Android, CrOS,
+Linux). The 1.0.18 note claiming errors from before Start were kept is corrected: they aren't recorded.
+
+| What changed | Checks passed | Undo just this |
+|---|---|---|
+| `background.js`, `manifest.json`, `tests/export.test.js`, `CHANGELOG.md` | `node tests/export.test.js` (adds Edge on Windows, Chrome on Linux and Android). End-to-end run passes unchanged. | `git revert` the v1.0.20 commit (`git log --grep v1.0.20`) |
+
 ## 1.0.19: Copy repro steps (2026-10-17)
 
 A bug report starts with steps to reproduce, and people wrote them by hand from the timeline. The export now
@@ -25,7 +35,7 @@ The debugger already had the page's `Runtime` domain on and ignored its events. 
 `console.assert` and uncaught exceptions are kept in `consoleErrors` in `logs.json`, with file and line.
 
 - Objects passed to the console are recorded only as their type (`Object`, `Array(3)`), so their data never is.
-- Errors logged before Start are replayed by Chrome when the debugger attaches; they keep their own time.
+- Each error keeps the time the page logged it. Errors from before Start are not recorded.
 - At most 1,000 per session, so a page failing in a loop can't fill storage.
 - With **Logins and keys** on, tokens in URLs inside messages become `REDACTED`. `redactUrl` now stops a value at
   whitespace, so the text after a URL in a message survives.

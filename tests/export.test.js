@@ -124,7 +124,11 @@ const leaks = text => ['abc123', 'pw@', 'xyz', 'Bearer', 's1', 'hunter2', 'k1', 
     });
     assert.ok(md.includes('1. Open https://shop.example.com/cart\n2. Type in field “Card number” (16 characters)\n3. Click button “Pay now”\n4. Go to https://shop.example.com/cart/done\n5. Scroll\n'), md);
     assert.ok(md.includes('- `POST https://shop.example.com/api/pay` → 502 Bad Gateway (+1.2 s)\n- Console: TypeError: x is undefined (https://shop.example.com/app.js:9) (+1.4 s)'), md);
-    assert.ok(md.includes('- Chrome 131, Macintosh, window 1280 × 720'), md);
+    assert.ok(md.includes('- Chrome 131, Mac OS X, window 1280 × 720'), md);
+    const env = ua => reproSteps({ exportDate: '2026-10-17T10:00:00.000Z', networkLogs: [{ timestamp: 1, url: 'https://a.example/', headers: { 'user-agent': ua } }] });
+    assert.ok(env('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0').includes('- Edge 131, Windows'));
+    assert.ok(env('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36').includes('- Chrome 131, Linux'));
+    assert.ok(env('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36').includes('- Chrome 131, Android'));
     assert.ok(md.includes('Capture All v9.9.9'), md);
 
     const empty = reproSteps({ exportDate: '2026-10-17T10:00:00.000Z' });
