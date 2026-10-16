@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Capture All",
-    "version": "1.0.17",
+    "version": "1.0.18",
     "author": "Ish Kapoor",
     "description": "Records user interactions, network requests, and screen elements.",
     "permissions": [

@@ -9,6 +9,8 @@ Only in the tab where you press Start, and only until you press Stop:
 
 - **Network:** URL, method, headers, POST data, status, and the bodies of text, JSON and XML responses
   (via the Chrome debugger, the same data DevTools shows).
+- **Console errors:** the text of `console.error` calls, failed asserts and uncaught exceptions, with file and
+  line. Objects passed to the console are recorded only as their type (`Object`, `Array(3)`), never their contents.
 - **Interactions:** clicks, scrolls, drags, inputs and keys, with the page URL and a description of the element.
 - **Element snapshots:** tag, selector, position and visible text of elements on the page.
 - **Video** (Video mode only): the tab as you see it.
@@ -21,7 +23,7 @@ puts that data back in the next export.
 |---|---|
 | Typed text | Values of text fields and editors, passwords included |
 | Private areas | Anything inside `data-private`, `.rr-mask` or `.rr-block` |
-| Logins and keys | Auth and cookie headers; URL parameters, JSON keys and form fields named like a token, key, session, password or signature (they become `REDACTED`); `user:password@` in URLs |
+| Logins and keys | Auth and cookie headers; URL parameters, JSON keys and form fields named like a token, key, session, password or signature (they become `REDACTED`), also in URLs inside console messages; `user:password@` in URLs |
 | Request and response bodies | POST data and response bodies (their size stays) |
 
 `logs.json` records which switches were on (`exportSkip`) and how many values were left out (`redacted`). The popup

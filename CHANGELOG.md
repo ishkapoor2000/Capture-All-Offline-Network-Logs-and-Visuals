@@ -3,6 +3,21 @@
 Each change is its own commit on the `ui-redesign` branch, so any step can be undone on its own.
 List the commits with `git log --oneline main..ui-redesign`.
 
+## 1.0.18: Console errors (2026-10-17)
+
+The debugger already had the page's `Runtime` domain on and ignored its events. Now `console.error`, failed
+`console.assert` and uncaught exceptions are kept in `consoleErrors` in `logs.json`, with file and line.
+
+- Objects passed to the console are recorded only as their type (`Object`, `Array(3)`), so their data never is.
+- Errors logged before Start are replayed by Chrome when the debugger attaches; they keep their own time.
+- At most 1,000 per session, so a page failing in a loop can't fill storage.
+- With **Logins and keys** on, tokens in URLs inside messages become `REDACTED`. `redactUrl` now stops a value at
+  whitespace, so the text after a URL in a message survives.
+
+| What changed | Checks passed | Undo just this |
+|---|---|---|
+| `background.js`, `manifest.json`, `README.md`, `PRIVACY.md`, `tests/redaction.test.js` | End-to-end with the real extension: a `console.error` with a token and an object, and an uncaught `TypeError`, both land in `logs.json` with file and line; the object's contents never appear; the token is redacted by default. `node tests/redaction.test.js` (adds a URL-in-text case). | `git revert` the v1.0.18 commit (`git log --grep v1.0.18`) |
+
 ## 1.0.17: Response bodies captured reliably (2026-10-17)
 
 The body was requested when the response headers arrived (`Network.responseReceived`). Chrome refuses

@@ -95,4 +95,11 @@ const leaks = text => ['abc123', 'pw@', 'xyz', 'Bearer', 's1', 'hunter2', 'k1', 
     assert.strictEqual(redacted.secrets, 4);
 }
 
+// URLs inside free text, as in console messages: the value stops at whitespace.
+{
+    const redacted = { secrets: 0, bodies: 0 };
+    const redactUrl = vm.runInContext('redactUrl', context);
+    assert.strictEqual(redactUrl('Save failed for /api?token=t5 Object', redacted), 'Save failed for /api?token=REDACTED Object');
+}
+
 console.log('redaction: all checks passed');

@@ -10,6 +10,7 @@
 
 let isRecording = false;
 let networkLogs = [];
+let consoleErrors = [];
 let attachedTabs = new Set();
 let debuggerListenerAdded = false;
 
@@ -777,7 +778,7 @@ async function saveNetworkLogs() {
     clearTimeout(saveNetworkLogsTimer);
     saveNetworkLogsTimer = null;
     try {
-        await videoStoreRequest('readwrite', store => store.put({ id: NETWORK_LOGS_ID, logs: networkLogs }));
+        await videoStoreRequest('readwrite', store => store.put({ id: NETWORK_LOGS_ID, logs: networkLogs, console: consoleErrors }));
     } catch (e) {
         console.warn('[NetworkLogs] Failed to persist network logs:', e);
     }
@@ -792,6 +793,7 @@ const networkLogsReady = (async () => {
     try {
         const record = await videoStoreRequest('readonly', store => store.get(NETWORK_LOGS_ID));
         if (record && Array.isArray(record.logs)) networkLogs = record.logs.concat(networkLogs);
+        if (record && Array.isArray(record.console)) consoleErrors = record.console.concat(consoleErrors);
     } catch (e) {
         console.warn('[NetworkLogs] Failed to restore network logs:', e);
     }
@@ -944,6 +946,7 @@ async function startRecording(tabId) {
         attachedTabs.add(tabId);
         isRecording = true;
         networkLogs = [];
+        consoleErrors = [];
         await saveNetworkLogs();
 
         // Persist so status/stop survive a service-worker restart. Merges with any state
@@ -977,6 +980,17 @@ function onDebuggerEvent(source, method, params) {
         case 'Network.loadingFailed':
             handleNetworkLoadingFailed(params, source.tabId);
             break;
+        case 'Runtime.consoleAPICalled':
+            if (params.type === 'error' || params.type === 'assert') {
+                handleConsoleError(params.timestamp, params.args.map(remoteText).join(' '), params.stackTrace, null, source.tabId);
+            }
+            break;
+        case 'Runtime.exceptionThrown': {
+            const details = params.exceptionDetails || {};
+            const message = details.exception ? remoteText(details.exception) : details.text;
+            handleConsoleError(params.timestamp, message, details.stackTrace, details, source.tabId);
+            break;
+        }
     }
     scheduleSaveNetworkLogs();
 }
@@ -1086,6 +1100,29 @@ function handleNetworkLoadingFailed(params, tabId) {
     }
 }
 
+// Objects show only as their type ("Object", "Array(3)"): their contents are page data.
+function remoteText(arg) {
+    if (arg.type === 'string') return arg.value;
+    return String(arg.unserializableValue ?? arg.description ?? arg.value ?? arg.type);
+}
+
+// shortcut: keeps the first 1000 errors of a session, so a page failing in a loop can't fill storage.
+const MAX_CONSOLE_ERRORS = 1000;
+
+// Chrome replays errors logged before Start when the debugger attaches, so their own time is kept.
+function handleConsoleError(timestamp, message, stackTrace, fallback, tabId) {
+    if (consoleErrors.length >= MAX_CONSOLE_ERRORS) return;
+    const where = (stackTrace && stackTrace.callFrames && stackTrace.callFrames[0]) || fallback || {};
+    consoleErrors.push({
+        type: 'console',
+        timestamp: Number.isFinite(timestamp) ? Math.round(timestamp) : Date.now(),
+        message: String(message || 'Error').slice(0, 2000),
+        url: where.url || '',
+        line: Number.isFinite(where.lineNumber) ? where.lineNumber + 1 : null,
+        tabId: tabId
+    });
+}
+
 async function stopRecording(tabId) {
     try {
         console.log('Stopping recording for tab:', tabId);
@@ -1121,13 +1158,13 @@ const FIXED_VALUE_TYPES = ['button', 'submit', 'reset', 'image', 'checkbox', 'ra
 const SECRET_NAME = /auth|token|secret|session|passw|pwd|api[-_]?key|csrf|xsrf|cookie|signature|jwt|^key$|^sig$|^otp$/i;
 const REDACTED = 'REDACTED';
 
-// Works on absolute and relative URLs alike and leaves the rest of the URL byte for byte.
+// Works on absolute and relative URLs, and on URLs inside text (console messages), leaving the rest byte for byte.
 // The fragment counts too: OAuth puts tokens after '#', and window.location.href keeps it.
 function redactUrl(url, redacted) {
     if (typeof url !== 'string') return url;
     return url
         .replace(/^([a-z][\w+.-]*:\/\/)[^/?#@]*@/i, (m, scheme) => { redacted.secrets++; return scheme; })
-        .replace(/([?&#])([^=&#]+)=([^&#]*)/g, (m, sep, name) => {
+        .replace(/([?&#])([^=&#\s]+)=([^&#\s]*)/g, (m, sep, name) => {
             if (!SECRET_NAME.test(name)) return m;
             redacted.secrets++;
             return `${sep}${name}=${REDACTED}`;
@@ -1255,6 +1292,9 @@ async function exportAllLogs(tabId, mode) {
         // How many values each switch left out: logs.json records it and the popup shows it.
         const redacted = { secrets: 0, bodies: 0 };
         const exportedNetworkLogs = scrubNetwork(networkLogs, exportSkip, redacted);
+        const exportedConsoleErrors = exportSkip.credentials
+            ? consoleErrors.map(e => ({ ...e, message: redactUrl(e.message, redacted), url: redactUrl(e.url, redacted) }))
+            : consoleErrors;
         const { interactionLogs, elementSnapshots } = scrubCapture(result.interactionLogs || [], result.elementSnapshots || [], exportSkip, redacted);
         // When video began (video t=0). Used to align the timeline with the video player.
         const videoStartTime = result.videoRecordingStartTime || null;
@@ -1284,6 +1324,7 @@ async function exportAllLogs(tabId, mode) {
             redacted: redacted,
             videoStartTime: videoStartTime,
             networkLogs: exportedNetworkLogs,
+            consoleErrors: exportedConsoleErrors,
             interactionLogs: interactionLogs,
             elementSnapshots: elementSnapshots,
             videoData: videoBlob ? {
@@ -1293,6 +1334,7 @@ async function exportAllLogs(tabId, mode) {
             } : { hasVideo: false },
             summary: {
                 totalNetworkRequests: exportedNetworkLogs.length,
+                totalConsoleErrors: exportedConsoleErrors.length,
                 totalInteractions: interactionLogs.length,
                 totalElementSnapshots: elementSnapshots.length
             }
@@ -6493,6 +6535,7 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
 
 function clearAllLogs() {
     networkLogs = [];
+    consoleErrors = [];
     videoBlob = null;
     chrome.storage.local.remove(['interactionLogs', 'elementSnapshots', 'recordedVideoBlob']);
     videoStoreRequest('readwrite', store => store.delete(NETWORK_LOGS_ID))
