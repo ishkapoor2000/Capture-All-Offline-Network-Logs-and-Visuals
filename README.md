@@ -273,7 +273,9 @@ Both are single offline files, work in light and dark, and respect "reduce motio
 ## Privacy
 
 - All data is stored locally in your browser
-- Nothing is sent to external servers
+- Nothing is sent to external servers. The extension's Content Security Policy blocks it from connecting anywhere
+  but itself, and the exported timelines carry a policy that blocks all network access
+- Administrators can limit recording to their test sites with the `allowedHosts` policy (see PRIVACY.md)
 - **Skip in export** (popup): switches that decide what the exported zip leaves out. All start on.
   - *Typed text*: field values (including the `value` attribute that frameworks like React fill with what
     you type, passwords too), and the text of textareas and rich-text editors. Button labels and checkbox or

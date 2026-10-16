@@ -5,7 +5,8 @@ let isRecording = false;
 let recordingMode = 'video'; // 'logs' or 'video' - Default to 'video' for video + logs feature
 let videoRecordingStartTime = null;
 let videoDurationInterval = null;
-// From the background: 'ok', 'chrome' (Chrome blocks its own pages) or 'file-off'; and this tab's armed session.
+// From the background: 'ok', 'chrome' (Chrome blocks its own pages), 'file-off' or 'policy' (an administrator's
+// allowedHosts leaves this site out); and this tab's armed session.
 let pageAccess = 'ok';
 let armed = null;
 
@@ -106,6 +107,8 @@ function switchMode(mode) {
 function showModeInfo() {
 	if (pageAccess === 'file-off') {
 		showPageInfo('Turn on "Allow access to file URLs" to record local files', true);
+	} else if (pageAccess === 'policy') {
+		showPageInfo(isRecording ? 'Not recording on this site: your organization does not allow it' : 'Your organization does not allow recording on this site', true);
 	} else if (pageAccess === 'chrome' && !isRecording) {
 		const mode = armed ? armed.mode : recordingMode;
 		if (!armed) showPageInfo('Chrome blocks recording its own pages. Recording starts when this tab opens a website.');
@@ -124,7 +127,7 @@ function renderStart() {
 	if (!isRecording && pageAccess === 'chrome') label = armed ? 'Cancel' : 'Start on next website';
 	if (!isRecording && pageAccess === 'file-off') label = 'Open file access settings';
 	document.getElementById('startLabel').textContent = label;
-	document.getElementById('startBtn').disabled = isRecording;
+	document.getElementById('startBtn').disabled = isRecording || pageAccess === 'policy';
 	document.getElementById('stopBtn').disabled = !isRecording;
 	document.getElementById('captureBtn').disabled = pageAccess !== 'ok';
 }

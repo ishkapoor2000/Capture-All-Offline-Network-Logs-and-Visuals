@@ -477,6 +477,8 @@ async function stopVideoCapture(tabId) {
  * @returns {Promise<{success: boolean, interactions: boolean}>}
  */
 async function startSession(tabId, mode) {
+    const tab = await chrome.tabs.get(tabId);
+    if (await pageAccess(tab.url || tab.pendingUrl) === 'policy') throw new Error(POLICY_BLOCKED);
     await clearArm();
     const { recordingState } = await chrome.storage.local.get(['recordingState']);
     if (recordingState && recordingState.isRecording) {
@@ -535,11 +537,51 @@ async function stopSession(fallbackTabId) {
     return { success: true, mode, stored };
 }
 
+// IT can limit recording to some sites with the allowedHosts policy (managed_schema.json). null: no limit.
+// shortcut: until the policy has loaded after a worker restart, events pass unchecked; Chrome keeps the worker
+// alive while the debugger is attached, so that only matters if it restarts mid-recording anyway.
+let allowedHosts = null;
+const blockedRequests = new Set();
+async function loadPolicy() {
+    try {
+        const { allowedHosts: hosts } = await chrome.storage.managed.get('allowedHosts');
+        allowedHosts = Array.isArray(hosts) && hosts.length ? hosts.map(h => String(h).trim().toLowerCase()).filter(Boolean) : null;
+    } catch (e) {
+        allowedHosts = null; // No managed storage outside Chrome policy (e.g. some Chromium builds).
+    }
+}
+const policyReady = loadPolicy();
+chrome.storage.onChanged.addListener((changes, area) => { if (area === 'managed') loadPolicy(); });
+
+// "staging.example.com" matches that host; "*.example.com" matches example.com and every subdomain.
+function urlAllowed(url) {
+    if (!allowedHosts) return true;
+    let host;
+    try {
+        host = new URL(url).hostname.toLowerCase();
+    } catch (e) {
+        return false;
+    }
+    return allowedHosts.some(rule => rule.startsWith('*.')
+        ? host === rule.slice(2) || host.endsWith(rule.slice(1))
+        : host === rule);
+}
+
+const POLICY_BLOCKED = 'Your organization does not allow recording on this site';
+
 /**
  * Chrome keeps every extension off its own pages (New Tab, Settings, the Web Store...).
- * @returns {Promise<'ok'|'chrome'|'file-off'>} 'file-off': a local file while "Allow access to file URLs" is off
+ * @returns {Promise<'ok'|'chrome'|'file-off'|'policy'>} 'file-off': a local file while "Allow access to file URLs"
+ *   is off; 'policy': outside the allowedHosts an administrator set
  */
 async function pageAccess(url) {
+    const access = await chromeAccess(url);
+    if (access !== 'ok') return access;
+    await policyReady;
+    return urlAllowed(url) ? 'ok' : 'policy';
+}
+
+async function chromeAccess(url) {
     let page;
     try {
         page = new URL(url || '');
@@ -616,7 +658,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     if (changeInfo.status !== 'complete') return;
     const { recordingState } = await chrome.storage.local.get(['recordingState']);
     if (recordingState && recordingState.isRecording && recordingState.tabId === tabId) {
-        await ensureContentScript(tabId);
+        const tab = await chrome.tabs.get(tabId).catch(() => null);
+        if (tab && await pageAccess(tab.url) === 'ok') await ensureContentScript(tabId);
     }
 });
 
@@ -947,6 +990,7 @@ async function startRecording(tabId) {
         isRecording = true;
         networkLogs = [];
         consoleErrors = [];
+        blockedRequests.clear();
         await saveNetworkLogs();
 
         // Persist so status/stop survive a service-worker restart. Merges with any state
@@ -966,6 +1010,9 @@ async function startRecording(tabId) {
 
 function onDebuggerEvent(source, method, params) {
     if (!attachedTabs.has(source.tabId)) return;
+    // A redirect keeps its request ID, so once a request reaches a site outside allowedHosts, none of its
+    // later events (response, body) may land on the earlier, allowed entry.
+    if (params && blockedRequests.has(params.requestId)) return;
 
     switch (method) {
         case 'Network.requestWillBeSent':
@@ -996,6 +1043,11 @@ function onDebuggerEvent(source, method, params) {
 }
 
 function handleNetworkRequest(params, tabId) {
+    // Judged by the page that made the request, so a blocked site's own requests and its page load stay out.
+    if (!urlAllowed(params.documentURL || params.request.url)) {
+        blockedRequests.add(params.requestId);
+        return;
+    }
     const logEntry = {
         type: 'request',
         timestamp: Date.now(),
@@ -1110,8 +1162,12 @@ function remoteText(arg) {
 const MAX_CONSOLE_ERRORS = 1000;
 
 // The page's own time, not when the event reached the extension.
-function handleConsoleError(timestamp, message, stackTrace, fallback, tabId) {
+async function handleConsoleError(timestamp, message, stackTrace, fallback, tabId) {
     if (consoleErrors.length >= MAX_CONSOLE_ERRORS) return;
+    if (allowedHosts) {
+        const tab = await chrome.tabs.get(tabId).catch(() => null);
+        if (!tab || !urlAllowed(tab.url)) return;
+    }
     const where = (stackTrace && stackTrace.callFrames && stackTrace.callFrames[0]) || fallback || {};
     consoleErrors.push({
         type: 'console',
@@ -1413,6 +1469,7 @@ function generateImprovedTimelineHTML(data) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    ${TIMELINE_CSP}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
     <title>Capture All timeline · ${new Date(data.exportDate).toLocaleString()}</title>
@@ -2819,6 +2876,9 @@ function reproSteps(data) {
         ''
     ].join('\n');
 }
+
+// The exported timelines can't load or send anything over the network; only the video next to the file plays.
+const TIMELINE_CSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src 'self' file: blob:; base-uri 'none'; form-action 'none'">`;
 
 // For <script> embedding: no "</script>" or "<!--" can appear inside.
 function embedJson(value) {
@@ -4586,6 +4646,7 @@ function generateVideoTimelineHTML(data, videoBlob = null, videoFileName = null)
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    ${TIMELINE_CSP}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="dark">
     <title>Session replay${host ? ' · ' + escapeHtml(host) : ''} · ${escapeHtml(recordedAt)}</title>

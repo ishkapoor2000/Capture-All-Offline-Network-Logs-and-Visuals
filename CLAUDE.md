@@ -16,7 +16,9 @@ No build step — plain JS, loaded unpacked.
 ## Files
 - `manifest.json` — MV3 manifest. Permissions: `activeTab, storage, tabs, scripting,
   debugger, downloads, tabCapture, offscreen`. Adding a permission is a user-facing
-  change (re-prompts on update) — don't add one casually.
+  change (re-prompts on update) — don't add one casually. Its CSP blocks network access from
+  extension pages and the worker (`connect-src 'self'`); keep it that way.
+- `managed_schema.json` — the `allowedHosts` admin policy (enforced via `urlAllowed` in `background.js`).
 - `background.js` — service worker. Owns the Chrome Debugger API attachment and network capture.
 - `content.js` — injected into the page; captures clicks, scrolls, drags, inputs, keys, DOM snapshots.
 - `offscreen.html` / `offscreen.js` — offscreen document, used for recording work the
@@ -30,5 +32,5 @@ No build step — plain JS, loaded unpacked.
 - Always `chrome.debugger.detach` on stop/error; a stranded attachment leaves the
   "being debugged" banner on the user's tab.
 - Exported HTML timeline must stay fully self-contained (no external requests) — that's
-  what makes the export offline-safe.
+  what makes the export offline-safe. `TIMELINE_CSP` enforces it in both timelines.
 - Nothing captured should ever leave the machine. No telemetry, no remote endpoints.

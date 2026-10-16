@@ -11,7 +11,7 @@ const stub = new Proxy(function () {}, {
     apply: () => stub,
     set: () => true,
 });
-const context = vm.createContext({ chrome: stub, self: stub, indexedDB: stub, console: { log() {}, warn() {}, error() {} }, URL, Blob: stub, setTimeout, Promise });
+const context = vm.createContext({ chrome: stub, self: stub, indexedDB: stub, console: { log() {}, warn() {}, error() {} }, URL, Blob: stub, setTimeout, clearTimeout, Promise });
 vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'background.js'), 'utf8'), context);
 const { scrubNetwork, scrubCapture, reproSteps, EXPORT_SKIP_DEFAULTS } = vm.runInContext('({ scrubNetwork, scrubCapture, reproSteps, EXPORT_SKIP_DEFAULTS })', context);
 
@@ -133,6 +133,38 @@ const leaks = text => ['abc123', 'pw@', 'xyz', 'Bearer', 's1', 'hunter2', 'k1', 
 
     const empty = reproSteps({ exportDate: '2026-10-17T10:00:00.000Z' });
     assert.ok(empty.includes('No interactions were recorded.') && empty.includes('Nothing failed'), empty);
+}
+
+// The allowedHosts policy: exact hosts, and *. for a domain with its subdomains; nothing else gets through.
+{
+    const urlAllowed = vm.runInContext('urlAllowed', context);
+    assert.strictEqual(urlAllowed('https://anything.example/'), true, 'no policy: no limit');
+    vm.runInContext("allowedHosts = ['staging.example.com', '*.test.example.org']", context);
+    assert.strictEqual(urlAllowed('https://staging.example.com/a?b=c'), true);
+    assert.strictEqual(urlAllowed('http://staging.example.com:8080/'), true, 'port does not matter');
+    assert.strictEqual(urlAllowed('https://example.com/'), false);
+    assert.strictEqual(urlAllowed('https://prod.example.com/'), false);
+    assert.strictEqual(urlAllowed('https://staging.example.com.evil.net/'), false, 'suffix tricks fail');
+    assert.strictEqual(urlAllowed('https://test.example.org/'), true, '*. includes the domain itself');
+    assert.strictEqual(urlAllowed('https://a.b.test.example.org/'), true);
+    assert.strictEqual(urlAllowed('https://nottest.example.org/'), false, 'not a dot boundary');
+    assert.strictEqual(urlAllowed('file:///Users/me/report.html'), false);
+    assert.strictEqual(urlAllowed('not a url'), false);
+
+    // A redirect from an allowed page to a blocked one keeps the request ID: its response must not attach.
+    vm.runInContext("networkLogs = []; attachedTabs.add(7)", context);
+    const event = vm.runInContext('onDebuggerEvent', context);
+    const src = { tabId: 7 };
+    event(src, 'Network.requestWillBeSent', { requestId: 'r1', documentURL: 'https://staging.example.com/login', request: { url: 'https://staging.example.com/login', method: 'GET', headers: {} } });
+    event(src, 'Network.requestWillBeSent', { requestId: 'r1', documentURL: 'https://sso.prod.com/', request: { url: 'https://sso.prod.com/', method: 'GET', headers: {} }, redirectResponse: { status: 302 } });
+    event(src, 'Network.responseReceived', { requestId: 'r1', response: { status: 200, statusText: 'OK', headers: { 'X-Prod': '1' }, mimeType: 'text/html' } });
+    event(src, 'Network.loadingFinished', { requestId: 'r1', encodedDataLength: 10 });
+    const logs = plain(vm.runInContext('networkLogs', context));
+    assert.strictEqual(logs.length, 1);
+    assert.strictEqual(logs[0].url, 'https://staging.example.com/login');
+    assert.strictEqual(logs[0].response, undefined, 'the blocked response stays out');
+    assert.strictEqual(logs[0].loadingFinished, undefined);
+    vm.runInContext('allowedHosts = null; networkLogs = []; blockedRequests.clear()', context);
 }
 
 console.log('export: all checks passed');

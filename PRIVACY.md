@@ -34,10 +34,52 @@ phone number inside a page or a kept body, is not detected. **Video can't be red
 screen. Look through an export before sharing it outside your team.
 
 ## For IT administrators
+
+### Limit recording to your test sites
+Set the extension policy `allowedHosts` to a list of host names: `staging.example.com` for one host, or
+`*.example.com` for that domain and every subdomain. Ports don't matter. Once it's set:
+
+- Start is refused on every other site, and the popup says the organization doesn't allow it.
+- If a recorded tab moves to another site, nothing from there is kept. Network requests are judged by the page
+  that made them, and console errors and interactions by the tab's current site.
+- Local files (`file://`) can't be recorded.
+
+Users can't change it. Leave it unset for no limit. Examples, with your extension ID in place of `<extension-id>`:
+
+Google Admin console → Apps & extensions → Capture All → Policy for extensions:
+```json
+{ "allowedHosts": { "Value": ["*.staging.example.com", "qa.example.com"] } }
+```
+
+Linux, a file in `/etc/opt/chrome/policies/managed/`:
+```json
+{ "3rdparty": { "extensions": { "<extension-id>": { "allowedHosts": ["*.staging.example.com", "qa.example.com"] } } } }
+```
+
+Windows uses the same key under `Software\Policies\Google\Chrome\3rdparty\extensions\<extension-id>\policy`, and
+macOS a configuration profile for `com.google.Chrome.extensions.<extension-id>`. The schema is in
+`managed_schema.json`.
+
+### Other controls
 - Allow or block the extension with the `ExtensionInstallAllowlist` / `ExtensionInstallBlocklist` policies.
-- `ExtensionSettings` → `runtime_blocked_hosts` is **not** a reliable way to limit recording to certain sites. It
-  keeps the content script off blocked sites, but Chrome's debugger API handles the policy separately: depending
-  on the Chrome version, a blocked host can turn off network capture on every site instead. Test on a managed
-  profile before relying on it.
-- The `debugger` permission is what lets Capture All read network traffic. Chrome shows the "being debugged"
-  banner on the tab for as long as recording runs.
+- Don't use `ExtensionSettings` → `runtime_blocked_hosts` for this. Chrome's debugger API handles that policy
+  separately: depending on the Chrome version, a blocked host can turn off network capture on every site.
+
+## For security reviewers
+
+**No network access.** The manifest's Content Security Policy lets the popup, the background service worker and the
+offscreen document connect only to the extension itself (`connect-src 'self' blob: data:`, `default-src 'self'`).
+Every exported `timeline.html` carries its own policy with `default-src 'none'`: it can't load or send anything,
+and only plays the `video.webm` next to it. There is no remote code; every script ships in the extension.
+
+| Permission | Why it's needed |
+|---|---|
+| `debugger` | Reads the recorded tab's network requests, responses and console errors. Chrome shows the "being debugged" banner while it's attached; it's detached on Stop. |
+| `tabs` | Reads the tab's URL to decide whether it can be recorded, and follows the recorded tab across page loads. |
+| `activeTab` | Access to the tab where the user clicked the extension. |
+| `scripting` | Adds the interaction recorder (`content.js`) to the recorded tab. |
+| `<all_urls>` host access | Adds the recorder again after each page load in the recorded tab, and for "Start on next website". `allowedHosts` narrows where it records. |
+| `storage` | Keeps the recording in the browser until it's exported; reads the `allowedHosts` policy. |
+| `downloads` | Saves the export `.zip` where the user chooses. |
+| `tabCapture` | Video mode: records the tab as video. |
+| `offscreen` | Runs the video recorder and builds the `.zip`; a service worker can do neither. |

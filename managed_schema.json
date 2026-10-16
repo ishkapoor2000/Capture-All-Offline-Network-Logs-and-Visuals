@@ -1,0 +1,11 @@
+{
+    "type": "object",
+    "properties": {
+        "allowedHosts": {
+            "title": "Sites where recording is allowed",
+            "description": "Host names such as staging.example.com, or *.example.com for that domain and every subdomain. When set, Capture All records on these sites only.",
+            "type": "array",
+            "items": { "type": "string" }
+        }
+    }
+}

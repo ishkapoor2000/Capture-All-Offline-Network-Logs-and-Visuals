@@ -3,6 +3,26 @@
 Each change is its own commit on the `ui-redesign` branch, so any step can be undone on its own.
 List the commits with `git log --oneline main..ui-redesign`.
 
+## 1.0.21: Provably offline, and an admin site limit (2026-10-17)
+
+The company review asked two things: can it send data anywhere, and can we keep it off production? Both are now
+answered by something a reviewer can check rather than a promise.
+
+- **No network access.** The manifest's Content Security Policy limits the popup, service worker and offscreen
+  document to connecting to the extension itself. Both exported timelines carry `TIMELINE_CSP` (`default-src
+  'none'`), so an export can't load or send anything either; the video next to it still plays.
+- **`allowedHosts` policy** (`managed_schema.json`). When IT sets it, recording works only on those hosts
+  (`staging.example.com`, or `*.example.com` for a domain and its subdomains). Start is refused elsewhere, and the
+  popup says why. If the recorded tab moves to another site, its requests (judged by the page that made them),
+  console errors and interactions are not kept. A redirect from an allowed page to another site keeps the request
+  ID, so every later event of a blocked request is dropped too (found in review). Users can't change it.
+- `PRIVACY.md`: policy setup for the Admin console, Linux, Windows and macOS, and a security-reviewer section with
+  the network policy and why each permission is needed.
+
+| What changed | Checks passed | Undo just this |
+|---|---|---|
+| `manifest.json`, `managed_schema.json`, `background.js`, `popup.js`, `PRIVACY.md`, `README.md`, `CLAUDE.md`, `tests/export.test.js` | `node tests/export.test.js` (adds host matching: exact, `*.`, ports, suffix tricks, `file:`; and an allowed-to-blocked redirect, which fails without the fix). End-to-end with the real extension: a fetch to example.com is blocked from the popup, the service worker and an exported timeline, while a normal web page reaches it (control); the popup renders with no CSP errors; the replay page's CSP lets `video.webm` load. With `allowedHosts` set, Start is refused on other sites, and after the tab moves from an allowed host to another, nothing from the other host is recorded; the same steps without the policy do record it. All earlier export checks still pass. | `git revert` the v1.0.21 commit (`git log --grep v1.0.21`) |
+
 ## 1.0.20: Right browser and OS in repro steps (2026-10-17)
 
 Found in review. Edge's User-Agent also contains `Chrome/`, so Edge users were reported as Chrome; Linux showed as

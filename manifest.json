@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Capture All",
-    "version": "1.0.20",
+    "version": "1.0.21",
     "author": "Ish Kapoor",
     "description": "Records user interactions, network requests, and screen elements.",
     "permissions": [
@@ -17,6 +17,12 @@
     "host_permissions": [
         "<all_urls>"
     ],
+    "content_security_policy": {
+        "extension_pages": "default-src 'self'; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' blob: data:"
+    },
+    "storage": {
+        "managed_schema": "managed_schema.json"
+    },
     "background": {
         "service_worker": "background.js"
     },
